@@ -1,6 +1,7 @@
 __author__ = "nasim.rahaman@iwr.uni-heidelberg.de"
 __doc__ = """Train an actor-critic model."""
 
+
 # Helper functions
 def fetch(deck, rotate=False):
     """Fetch from a deque. Return None if nothing could be fetched."""
@@ -13,6 +14,7 @@ def fetch(deck, rotate=False):
             return out
     except IndexError:
         return None
+
 
 def consolidatebatches(*records):
     """
@@ -37,6 +39,7 @@ def configure(actor, critic, modelconfig):
         [+] compute gradients
         [+] build the optimizer (with control variables)
         [+] compile training functions for both actor and critic
+        [+] set backup paths
     """
 
     # actor and critic are not fedforward ICv1's. Actor takes x and outputs y, critic takes y and outputs l.
@@ -51,8 +54,8 @@ def configure(actor, critic, modelconfig):
     # Make k variable (for the critic). It has the shape (bs,)
     k = critic.baggage['k'] = T.vector('k')
     # Make loss. Note that critic.y.shape = (bs, 1, nr, nc). Convert to (bs, nr * nc) and sum along the second axis
-    # before multiplying with k to save computation. The resulting vector of shape (bs,) (after having applied RELU) and
-    # is averaged to obtain a scalar loss. The nash energy gives the loss at ground state.
+    # before multiplying with k to save computation. The resulting vector of shape (bs,) (after having applied RELU)
+    # and is averaged to obtain a scalar loss. The nash energy gives the loss at ground state.
     critic.L = relu(k * (critic.y.flatten(ndim=2).mean(axis=1) + np.float32(modelconfig['nashenergy']))).mean()
     # Add regularizer
     critic.C = critic.L + nt.lp(critic.params, regterms=[(2, 0.0005)])
@@ -93,6 +96,11 @@ def configure(actor, critic, modelconfig):
                                           outputs={'critic-C': critic.C, 'critic-L': critic.L,
                                                    'critic-yc': critic.y.flatten(ndim=2).mean(axis=1), 'k': k},
                                           updates=critic.updates, allow_input_downcast=True, on_unused_input='warn')
+
+    # Backup directories for actor and critic
+    actor.savedir = modelconfig['actor-savedir']
+    critic.savedir = modelconfig['critic-savedir']
+
     # Done.
     return actor, critic
 
@@ -144,8 +152,8 @@ def fit(actor, critic, trX, fitconfig, tools=None):
             try:
                 batchX, batchY = trX.next()
                 # Append to criticdatadeck
-                criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.array([1.])})
-                actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.array([1.])})
+                criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.array([0.])})
+                actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.array([0.])})
             except StopIteration:
                 # Iterator might have stopped, but there could be batches left in the criticdatadeck
                 if (len(criticdatadeck) + len(actordatadeck)) == 0:
@@ -177,13 +185,15 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 # Skip training
                 criticout = {}
 
-            if trainactor and iterstat['iternum']%trainactor:
+            if trainactor and iterstat['iternum'] % trainactor:
                 # Fetch batch for actor
                 raw = fetch(actordatadeck)
                 # Train actor
                 actorout = actor.classifiertrainer(x=raw['x'])
                 # Increment iteration counter
                 iterstat['actor-iternum'] += 1
+                # Add to experience database for future replay
+                edb.append({'x': raw['x'], 'y': actorout['actor-y'], 'k': np.array([1.])})
             else:
                 # Skip training
                 actorout = {}
@@ -216,27 +226,59 @@ def fit(actor, critic, trX, fitconfig, tools=None):
         # Increment epoch counter
         iterstat['epochnum'] += 1
 
+    # Return trained actor and critic
+    return actor, critic
+
 
 def run(actor, critic, trX, runconfig):
     """
     Glue. This function's job:
-        [-] set up callbacks.
-        [-] set up experience database
-        [-] configure actor and critic models (backup paths, etc.)
-        [-] fit models within a try-except-finally clause
+        [+] set up callbacks.
+        [+] configure actor and critic models
+        [+] fit models within a try-except-finally clause
     """
+
     tools = {}
     # Set up relays
     if 'relayfile' in runconfig.keys():
-        tools['relay'] = None
-    # Set up callbacks
-    pass
+        tools['relay'] = tk.relay(switches={'actor-training-signal': th.shared(value=np.float32(1)),
+                                            'critic-training-signal': th.shared(value=np.float32(1)),
+                                            'actor-learningrate': actor.baggage['learningrate'],
+                                            'critic-learningrate': critic.baggage['learningrate']})
+
+    # Set up printer
+    if 'verbose' in runconfig.keys() and runconfig['verbose']:
+        tools['printer'] = tk.printer(monitors=[tk.monitorfactory('Actor-Cost', 'actor-C', float),
+                                                tk.monitorfactory('Actor-Loss', 'actor-L', float),
+                                                tk.monitorfactory('Critic-Cost', 'critic-C', float),
+                                                tk.monitorfactory('Critic-Loss', 'critic-L', float),
+                                                tk.monitorfactory('Critic-Prediction', 'critic-yc', float)])
+
     # Set up logs
-    pass
+    if 'logfile' in runconfig.keys():
+        tools['log'] = tk.logger(runconfig['logfile'])
+        # Bind logger to printer if possible
+        if 'printer' in tools.keys():
+            tools['printer'].textlogger = tools['log']
+
+    # Gather all callbacks to a single object
+    callbacklist = []
+    if 'printer' in tools.keys():
+        callbacklist.append(tools['printer'])
+    tools['callbacks'] = tk.callbacks(callbacklist)
+
     # Configure model
-    pass
-    # Fit model
-    pass
+    actor, critic = configure(actor, critic, runconfig['modelconfig'])
+
+    # Fit models
+    try:
+        actor, critic = fit(actor, critic, trX, runconfig['fitconfig'], tools=tools)
+    finally:
+        actor.save(nameflags='-final')
+        critic.save(nameflags='-final')
+
+    # Return
+    return actor, critic
 
 
 if __name__ == '__main__':
@@ -285,5 +327,5 @@ if __name__ == '__main__':
     import Antipasti.backend as A
     import Antipasti.trainkit as tk
 
-    sys.path.append(os.path.normpath(os.path.join(__file__, "../../Boilerplate")))
-    import tools
+    # TODO: Data loading
+
