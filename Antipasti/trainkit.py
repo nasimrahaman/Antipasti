@@ -411,7 +411,7 @@ def monitorfactory(printname, fieldname, preprocessor=None):
     preprocessor = (lambda x: x) if preprocessor is None else preprocessor
     # Build monitor
     def monitor(**kwargs):
-        if kwargs[fieldname] is not None:
+        if fieldname in kwargs.keys() and kwargs[fieldname] is not None:
             return "| {}: {} |".format(printname, preprocessor(kwargs[fieldname]))
         else:
             return ""
