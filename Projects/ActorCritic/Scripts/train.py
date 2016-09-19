@@ -94,7 +94,7 @@ def configure(actor, critic, modelconfig):
     # as its input.
     critic.classifiertrainer = A.function(inputs={'xx': actor.x, 'xy': actor.y, 'k': k},
                                           outputs={'critic-C': critic.C, 'critic-L': critic.L,
-                                                   'critic-yc': critic.y.flatten(ndim=2).mean(axis=1), 'k': k},
+                                                   'critic-y': critic.y.flatten(ndim=2).mean(axis=1), 'k': k},
                                           updates=critic.updates, allow_input_downcast=True, on_unused_input='warn')
 
     # Backup directories for actor and critic
@@ -252,7 +252,7 @@ def run(actor, critic, trX, runconfig):
                                                 tk.monitorfactory('Actor-Loss', 'actor-L', float),
                                                 tk.monitorfactory('Critic-Cost', 'critic-C', float),
                                                 tk.monitorfactory('Critic-Loss', 'critic-L', float),
-                                                tk.monitorfactory('Critic-Prediction', 'critic-yc', float)])
+                                                tk.monitorfactory('Critic-Prediction', 'critic-y', float)])
 
     # Set up logs
     if 'logfile' in runconfig.keys():
