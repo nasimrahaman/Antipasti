@@ -129,7 +129,7 @@ class relay(callback):
 
 class printer(callback):
     """Class to print training/validation outputs."""
-    def __init__(self, monitors, textlogger=None, callevery=1):
+    def __init__(self, monitors, seperator='', textlogger=None, callevery=1):
         """
         :type monitors: list
         :param monitors: Training monitors that return a string.
@@ -147,6 +147,7 @@ class printer(callback):
         # Attach meta
         self.monitors = monitors
         self.textlogger = textlogger
+        self.seperator = seperator
         # Previous print
         self.prevprint = ''
 
@@ -156,7 +157,7 @@ class printer(callback):
         # Get rid of None's if there are any
         monitorout = [mout for mout in monitorout if mout is not None]
         # Build message
-        msg = ''.join(monitorout)
+        msg = self.seperator.join(monitorout)
         self.prevprint = msg
         # Print message
         print(msg)
