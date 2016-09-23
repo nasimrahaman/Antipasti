@@ -1,0 +1,65 @@
+# Prototype data configuration file.
+
+# Configuration for the data loader
+loadconfig:
+  # Paths to H5 files
+  paths:
+    # Raw and labels are in the same H5 file.
+    A: null
+    B: null
+    C: null
+
+  # Paths in H5 files
+  h5paths:
+    A:
+      raw: '/volumes/raw'
+      gt: '/volumes/labels/neuron_id'
+      syn: 'x'
+    B: 
+      raw: '/volumes/raw'
+      gt: '/volumes/labels/neuron_id'
+      syn: 'x'
+    C: 
+      raw: '/volumes/raw'
+      gt: '/volumes/labels/neuron_id'
+      syn: 'x'
+
+  # Slices
+  slices:
+    A: '(slice(50, None), slice(None, None), slice(None, None))'
+    B: '(slice(50, None), slice(None, None), slice(None, None))'
+    C: '(slice(50, None), slice(None, None), slice(None, None))'
+
+# Configuration for preprocessing functions
+prepconfig: 
+  edt: 0.7
+  elastic: true
+  elastic-params: 
+    sigma: 50.
+    alpha: 2000.
+  include:
+    synapses: false
+    membranes: true
+  dropslice: false
+  random-rotate: true
+  random-flip: true
+  random-flip-z: true
+
+# General configuration
+# Dataset selector ('all' would weave all feeders) 
+dataset: 'all'
+batchsize: 1
+nhoodsize:
+  - 3
+  - 1024
+  - 1024
+stride: 
+  - 1
+  - 1
+  - 1
+ds:
+  - 1
+  - 2
+  - 2
+
+
