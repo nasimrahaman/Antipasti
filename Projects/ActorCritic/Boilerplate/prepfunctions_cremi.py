@@ -217,7 +217,7 @@ def prepfunctions():
             # Occlude
             processedimages = []
             for image in images:
-                image[randmask == 1.] = wnoise[randmask==1.]
+                image[randmask == 1.] = wnoise[randmask == 1.]
                 processedimages.append(image)
             # Return processed images
             return pyk.delist(processedimages)
@@ -311,18 +311,19 @@ def prepfunctions():
         return _func
 
     # Flip slices vertically
-    def randomflipz(debug=False):
+    def randomflipz(pairflip=False, debug=False):
 
         def _flipz(batch):
 
             if debug:
                 print("Input shape is: {}".format(batch.shape))
 
-            if batch.shape[1] != 6:
+            if not pairflip:
                 if debug: print("Pathway 1.")
                 batch = batch[:, ::-1, ...]
             else:
                 if debug: print("Pathway 2.")
+                assert batch.shape[1] == 6
                 batch = np.concatenate((batch[:, :3, ...][:, ::-1, ...], batch[:, 3:, ...][:, ::-1, ...]), axis=1)
 
             if debug:
