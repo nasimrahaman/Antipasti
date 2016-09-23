@@ -1,11 +1,15 @@
-__doc__ = "Data Logistics for CREMI."
-
 # Add to path
 import sys
-sys.path.append('/export/home/nrahaman/Python/Antipasti/Projects/ActorCritic/Boilerplate')
 
+sys.path.append('/export/home/nrahaman/Python/Antipasti/Projects/ActorCritic/Boilerplate')
+import prepfunctions_cremi
 
 import Antipasti.trainkit as tk
+import Antipasti.netdatautils as ndu
+import Antipasti.prepkit as pk
+
+
+__doc__ = "Data Logistics for CREMI."
 
 
 def ffd(dictionary, key, default=None):
@@ -26,17 +30,55 @@ def path2dict(path):
 
 def buildpreptrains(prepconfig):
     prepconfig = path2dict(prepconfig)
-    pass
+
+    # Get prepfunctions
+    pf = prepfunctions_cremi.prepfunctions()
+
+    # Build preptrain for raw data
+    ptX = pk.preptrain([pk.im2double(nbit=8), pk.cast(), pk.normalizebatch(), pf['time2channel']])
+
+    # Build preptrain for ground truth
+    ptY = pk.preptrain([pf['time2channel'], pf['seg2membrane'](), pf['disttransform'](gain=prepconfig['edt']),
+                        pk.cast()])
+
+    # Build preptrain for the zipped XY feeder
+    ptXY = pk.preptrain([])
+
+    # Elastic transformations if requested
+    if prepconfig['elastic']:
+        ptXY.append(pf['elastictransform'](**prepconfig['elastic-params']))
+
+    # Random rotate if requested
+    if prepconfig['random-rotate']:
+        ptXY.append(pf['randomrotate']())
+
+    # Random flip if requested
+    if prepconfig['random-flip']:
+        ptXY.append(pf['randomflip']())
+
+    if prepconfig['random-flip-z']:
+        ptXY.append(pf['randomflipz']())
+
+    return {'X': ptX, 'Y': ptY, 'XY': ptXY}
 
 
 def load(loadconfig):
     loadconfig = path2dict(loadconfig)
+    # Load from H5
+    datasets = {dsetname: {dsetobj: ndu.fromh5(path=dsetname,
+                                               datapath=loadconfig['h5paths'][dsetname][dsetobj],
+                                               dataslice=loadconfig['slices'][dsetname])
+                           for dsetobj in ['raw', 'gt', 'syn'] if loadconfig['h5paths'][dsetname][dsetobj] is not 'x'}
+                for dsetname, dsetpath in loadconfig['paths'].items()}
 
-    pass
+    return datasets
 
 
 def fetchfeeder(dataconf):
     dataconf = path2dict(dataconf)
+    # Load datasets
+    datasets = load(dataconf['loadconfig'])
+    # TODO
     pass
 
 
