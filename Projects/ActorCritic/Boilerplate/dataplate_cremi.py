@@ -6,6 +6,7 @@ import prepfunctions_cremi
 
 import Antipasti.trainkit as tk
 import Antipasti.netdatautils as ndu
+import Antipasti.netdatakit as ndk
 import Antipasti.prepkit as pk
 
 
@@ -30,6 +31,9 @@ def path2dict(path):
 
 def buildpreptrains(prepconfig):
     prepconfig = path2dict(prepconfig)
+
+    # Only membranes for now
+    assert not prepconfig['include']['synapses'], "Only membranes for now."
 
     # Get prepfunctions
     pf = prepfunctions_cremi.prepfunctions()
@@ -74,12 +78,54 @@ def load(loadconfig):
     return datasets
 
 
-def fetchfeeder(dataconf):
+def fetchfeeder(dataconf, givens=None):
     dataconf = path2dict(dataconf)
-    # Load datasets
-    datasets = load(dataconf['loadconfig'])
-    # TODO
-    pass
+    # Default for givens
+    givens = {} if givens is None else givens
+
+    # Load datasets if need be
+    if 'datasets' not in givens.keys():
+        datasets = load(dataconf['loadconfig'])
+    else:
+        datasets = givens['datasets']
+
+    # Build preptrain if need be
+    if 'preptrains' not in givens.keys():
+        preptrains = buildpreptrains(dataconf['prepconfig'])
+    else:
+        preptrains = givens['preptrains']
+
+    # Do we need to weave feeders from datasets A, B and C?
+    if 'dsetname' not in givens.keys():
+        dsetname = dataconf['dataset']
+    else:
+        dsetname = givens['dsetname']
+
+    # Make feeders (only membranes for now)
+    if dsetname == 'all':
+        # Build feeder with data from all datasets
+        feeders = []
+        for dsetname, dset in datasets.items():
+            # Prepare givens for the recursive call
+            givens = {'dsetname': dsetname, 'datasets': datasets, 'preptrains': preptrains}
+            # Make the call
+            feeders.append(fetchfeeder(dataconf, givens))
+        # Weave all feeders together to one feeder
+        feeder = ndk.feederweave(feeders)
+    else:
+        # Build feeder with data from just one (given) dataset.
+        # Build ground-truth feeder
+        gt = ndk.cargo(data=datasets[dsetname]['gt'],
+                       axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
+                       ds=dataconf['stride'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
+                       preptrain=preptrains['Y'])
+        # Build raw data feeder
+        rd = gt.clonecrate(data=datasets[dsetname]['raw'], syncgenerators=True)
+        rd.preptrain = preptrains['X']
+        # Zip feeders
+        feeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
+
+    return feeder
 
 
 def test(dataconf):
