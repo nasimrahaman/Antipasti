@@ -200,18 +200,6 @@ def slidingwindowslices(shape, nhoodsize, stride=1, ds=1, window=None, ignorebor
     return it.product(*nslices)
 
 
-if __name__ == "__main__":
-
-    # TEST PASSED
-    # slicegen = slidingwindowslices([512, 512, 30], [256, 256, 1], stride=[256, 256, 1])
-
-    # TEST PASSED
-    # slicegen = slidingwindowslices([512, 512, 30], [256, 256, 1], stride=[256, 256, 1], window=['x', 'x', [13, 14]])
-
-    slicegen = slidingwindowslices([512, 512, 30], [256, 256, 1], stride=[256, 256, 1], window=['x', 'x', [13, 14]])
-    pass
-
-
 def pickle(obj, filename):
     # Write to file
     with open(filename, 'wb') as f:
@@ -242,3 +230,15 @@ def undill(filename):
         obj = dll.load(f)
     # Return
     return obj
+
+
+if __name__ == "__main__":
+
+    # TEST PASSED
+    # slicegen = slidingwindowslices([512, 512, 30], [256, 256, 1], stride=[256, 256, 1])
+
+    # TEST PASSED
+    # slicegen = slidingwindowslices([512, 512, 30], [256, 256, 1], stride=[256, 256, 1], window=['x', 'x', [13, 14]])
+
+    slicegen = slidingwindowslices([512, 512, 30], [256, 256, 1], stride=[256, 256, 1], window=['x', 'x', [13, 14]])
+    pass
