@@ -8,6 +8,7 @@ logfile: null
 relayfile: null
 
 # Configuration for the data-logistics (outsourced to a different file)
+dataplatepath: null
 dataconf: null
 
 # Configuration for building and configuring models
