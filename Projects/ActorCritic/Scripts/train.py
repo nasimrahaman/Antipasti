@@ -84,7 +84,7 @@ def configure(modelconfig):
 
     # Set up critic's loss
     # Make a relu function for the critic's loss
-    relu = lambda x: T.switch(x > 0.)
+    relu = lambda x: T.switch(x > 0., x, 0.)
     # Make k variable (for the critic). It has the shape (bs,)
     k = critic.baggage['k'] = T.vector('k')
     # Make loss. Note that critic.y.shape = (bs, 1, nr, nc). Convert to (bs, nr * nc) and sum along the second axis
@@ -280,19 +280,24 @@ def run(runconfig):
 
     runconfig = path2dict(runconfig)
 
+    print("[+] Building and configuring models...")
     # Configure model
     actor, critic = configure(runconfig['modelconfig'])
+    print("[+] Loading data feeders...")
     # Load feeder
     trX = fetchfeeder(runconfig)
 
     tools = {}
     # Set up relays
     if 'relayfile' in runconfig.keys():
+        print("[+] Using relay file from {}.".format(runconfig['relayfile']))
         tools['relay'] = tk.relay(switches={'actor-training-signal': th.shared(value=np.float32(1)),
                                             'critic-training-signal': th.shared(value=np.float32(1)),
                                             'actor-learningrate': actor.baggage['learningrate'],
                                             'critic-learningrate': critic.baggage['learningrate']},
                                   ymlfile=runconfig['relayfile'])
+    else:
+        print("[-] Not listening to relays.")
 
     # Set up printer
     if 'verbose' in runconfig.keys() and runconfig['verbose']:
@@ -304,14 +309,20 @@ def run(runconfig):
 
     # Set up logs
     if 'logfile' in runconfig.keys():
+        print("[+] Logging to {}.".format(runconfig['logfile']))
         tools['log'] = tk.logger(runconfig['logfile'])
         # Bind logger to printer if possible
         if 'printer' in tools.keys():
             tools['printer'].textlogger = tools['log']
+    else:
+        print("[-] Not logging.")
 
     # Set up live plots
     if runconfig['live-plots']:
+        print("[+] Live plots ON.")
         tools['plotter'] = tk.plotter(linenames=['Actor-Loss', 'Critic-Loss'], colors=['navy', 'firebrick'])
+    else:
+        print("[+] Live plots OFF.")
 
     # Gather all callbacks to a single object (tools != callbacks)
     callbacklist = []
@@ -321,6 +332,7 @@ def run(runconfig):
         callbacklist.append(tools['plotter'])
     tools['callbacks'] = tk.callbacks(callbacklist)
 
+    print("[+] Fitting...")
     # Fit models
     try:
         actor, critic = fit(actor, critic, trX, runconfig['fitconfig'], tools=tools)
