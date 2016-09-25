@@ -42,8 +42,9 @@ def buildpreptrains(prepconfig):
     ptX = pk.preptrain([pk.im2double(nbit=8), pk.cast(), pk.normalizebatch(), pf['time2channel']])
 
     # Build preptrain for ground truth
-    ptY = pk.preptrain([pf['time2channel'], pf['seg2membrane'](), pf['disttransform'](gain=prepconfig['edt']),
-                        pk.cast()])
+    ptY = pk.preptrain([pf['time2channel'], pf['seg2membrane']()] +
+                       [pf['disttransform'](gain=prepconfig['edt'])] if prepconfig['edt'] is not None else [] +
+                       [pk.cast()])
 
     # Build preptrain for the zipped XY feeder
     ptXY = pk.preptrain([])
@@ -69,10 +70,10 @@ def buildpreptrains(prepconfig):
 def load(loadconfig):
     loadconfig = path2dict(loadconfig)
     # Load from H5
-    datasets = {dsetname: {dsetobj: ndu.fromh5(path=dsetname,
+    datasets = {dsetname: {dsetobj: ndu.fromh5(path=dsetpath,
                                                datapath=loadconfig['h5paths'][dsetname][dsetobj],
-                                               dataslice=loadconfig['slices'][dsetname])
-                           for dsetobj in ['raw', 'gt', 'syn'] if loadconfig['h5paths'][dsetname][dsetobj] is not 'x'}
+                                               dataslice=eval(loadconfig['slices'][dsetname]))
+                           for dsetobj in ['raw', 'gt'] if loadconfig['h5paths'][dsetname][dsetobj] is not 'x'}
                 for dsetname, dsetpath in loadconfig['paths'].items()}
 
     return datasets
@@ -117,7 +118,7 @@ def fetchfeeder(dataconf, givens=None):
         # Build ground-truth feeder
         gt = ndk.cargo(data=datasets[dsetname]['gt'],
                        axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
-                       ds=dataconf['stride'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
+                       ds=dataconf['ds'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
                        preptrain=preptrains['Y'])
         # Build raw data feeder
         rd = gt.clonecrate(data=datasets[dsetname]['raw'], syncgenerators=True)
