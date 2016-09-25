@@ -273,7 +273,7 @@ def run(runconfig):
     """
     Glue. This function's job:
         [+] build and configure actor and critic models
-        [-] set up data feeder
+        [+] set up data feeder
         [+] set up callbacks.
         [+] fit models within a try-except-finally clause
     """
@@ -309,12 +309,16 @@ def run(runconfig):
         if 'printer' in tools.keys():
             tools['printer'].textlogger = tools['log']
 
-    # TODO Set up live plots
+    # Set up live plots
+    if runconfig['live-plots']:
+        tools['plotter'] = tk.plotter(linenames=['Actor-Loss', 'Critic-Loss'], colors=['navy', 'firebrick'])
 
-    # Gather all callbacks to a single object
+    # Gather all callbacks to a single object (tools != callbacks)
     callbacklist = []
     if 'printer' in tools.keys():
         callbacklist.append(tools['printer'])
+    if 'plotter' in tools.keys():
+        callbacklist.append(tools['plotter'])
     tools['callbacks'] = tk.callbacks(callbacklist)
 
     # Fit models
@@ -374,5 +378,5 @@ if __name__ == '__main__':
     import Antipasti.backend as A
     import Antipasti.trainkit as tk
 
-    # TODO: Data loading
-
+    # Go!
+    run(config)

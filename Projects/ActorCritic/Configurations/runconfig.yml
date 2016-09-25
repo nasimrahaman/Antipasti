@@ -1,5 +1,6 @@
 # General settings
 verbose: true
+live-plots: true
 
 # Paths to aux-files
 logfile: null
