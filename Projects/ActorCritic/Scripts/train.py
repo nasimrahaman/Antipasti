@@ -2,7 +2,8 @@ __author__ = "nasim.rahaman@iwr.uni-heidelberg.de"
 __doc__ = """Train an actor-critic model."""
 
 
-# Helper functions
+# ---------Helper functions---------
+
 def fetch(deck, rotate=False):
     """Fetch from a deque. Return None if nothing could be fetched."""
     try:
@@ -31,8 +32,37 @@ def consolidatebatches(*records):
     out = {key: np.concatenate([record[key] for record in records], axis=0) for key in keys}
     return out
 
+def path2dict(path):
+    if isinstance(path, str):
+        return tk.yaml2dict(path)
+    elif isinstance(path, dict):
+        return path
+    else:
+        raise NotImplementedError
 
-def configure(actor, critic, modelconfig):
+# ----------------------------------
+
+def buildmodels(modelconfig):
+    modelconfig = path2dict(modelconfig)
+    # Import modelmaker
+    modelmaker = imp.load_source('mmkr', modelconfig['path'])
+    # Build models
+    actor = modelmaker.build(**modelconfig['actor-buildconfig'])
+    critic = modelmaker.build(**modelconfig['critic-buildconfig'])
+    # Return
+    return actor, critic
+
+
+def fetchfeeder(runconfig):
+    runconfig = path2dict(runconfig)
+    # Load datafeeders
+    dataplate = imp.load_source('dataplate', runconfig['dataplatepath'])
+    # Fetch feeder and return
+    trX = dataplate.fetchfeeder(runconfig['dataconf'])
+    return trX
+
+
+def configure(modelconfig):
     """
     Configure actor and critic. This function should do the following:
         [+] set up loss variables for the actor and the critic
@@ -41,6 +71,10 @@ def configure(actor, critic, modelconfig):
         [+] compile training functions for both actor and critic
         [+] set backup paths
     """
+    modelconfig = path2dict(modelconfig)
+
+    # Build actor and critic models
+    actor, critic = buildmodels(modelconfig)
 
     # actor and critic are not fedforward ICv1's. Actor takes x and outputs y, critic takes y and outputs l.
     # Feedforward actor
@@ -112,6 +146,11 @@ def fit(actor, critic, trX, fitconfig, tools=None):
         [-] use a experience database to stabilize training the crtic
         [-] handle control variables
     """
+
+    fitconfig = path2dict(fitconfig)
+
+    # Defaults
+    fitconfig['maxiter'] = np.inf if fitconfig['maxiter'] is None else fitconfig['maxiter']
 
     # Defaults
     if tools is None:
@@ -230,13 +269,21 @@ def fit(actor, critic, trX, fitconfig, tools=None):
     return actor, critic
 
 
-def run(actor, critic, trX, runconfig):
+def run(runconfig):
     """
     Glue. This function's job:
+        [+] build and configure actor and critic models
+        [-] set up data feeder
         [+] set up callbacks.
-        [+] configure actor and critic models
         [+] fit models within a try-except-finally clause
     """
+
+    runconfig = path2dict(runconfig)
+
+    # Configure model
+    actor, critic = configure(runconfig['modelconfig'])
+    # Load feeder
+    trX = fetchfeeder(runconfig)
 
     tools = {}
     # Set up relays
@@ -244,7 +291,8 @@ def run(actor, critic, trX, runconfig):
         tools['relay'] = tk.relay(switches={'actor-training-signal': th.shared(value=np.float32(1)),
                                             'critic-training-signal': th.shared(value=np.float32(1)),
                                             'actor-learningrate': actor.baggage['learningrate'],
-                                            'critic-learningrate': critic.baggage['learningrate']})
+                                            'critic-learningrate': critic.baggage['learningrate']},
+                                  ymlfile=runconfig['relayfile'])
 
     # Set up printer
     if 'verbose' in runconfig.keys() and runconfig['verbose']:
@@ -261,14 +309,13 @@ def run(actor, critic, trX, runconfig):
         if 'printer' in tools.keys():
             tools['printer'].textlogger = tools['log']
 
+    # TODO Set up live plots
+
     # Gather all callbacks to a single object
     callbacklist = []
     if 'printer' in tools.keys():
         callbacklist.append(tools['printer'])
     tools['callbacks'] = tk.callbacks(callbacklist)
-
-    # Configure model
-    actor, critic = configure(actor, critic, runconfig['modelconfig'])
 
     # Fit models
     try:
