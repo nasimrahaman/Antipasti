@@ -214,12 +214,16 @@ def fit(actor, critic, trX, fitconfig, tools=None):
             trainactor = tools['relay'].switches['actor-training-signal'].get_value()
             traincritic = tools['relay'].switches['critic-training-signal'].get_value()
 
-            if traincritic and iterstat['iternum'] % traincritic:
+            if traincritic and iterstat['iternum'] % traincritic == 0:
                 # Try to fetch from experience database
                 exp = fetch(edb)
                 raw = fetch(criticdatadeck)
                 # Consolidate to a common batch for the classifier
                 critbatch = consolidatebatches(exp, raw)
+
+                import pdb
+                pdb.set_trace()
+
                 # Train
                 criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch['y'], k=critbatch['k'])
                 # Increment iteration counter
@@ -228,7 +232,7 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 # Skip training
                 criticout = {}
 
-            if trainactor and iterstat['iternum'] % trainactor:
+            if trainactor and iterstat['iternum'] % trainactor == 0:
                 # Fetch batch for actor
                 raw = fetch(actordatadeck)
                 # Train actor
@@ -245,6 +249,7 @@ def fit(actor, critic, trX, fitconfig, tools=None):
             if iterstat['actor-iternum'] % fitconfig['actor-save-every'] == 0:
                 actor.save(nameflags='--iter-{}-routine'.format(iterstat['actor-iternum']))
                 iterstat['actor-saved'] = True
+                print("[+] Saved actor parameters to {}.".format(actor.lastsavelocation))
             else:
                 iterstat['actor-saved'] = False
 
@@ -252,6 +257,7 @@ def fit(actor, critic, trX, fitconfig, tools=None):
             if iterstat['critic-iternum'] % fitconfig['critic-save-every'] == 0:
                 critic.save(nameflags='--iter-{}-routine'.format(iterstat['critic-iternum']))
                 iterstat['critic-saved'] = True
+                print("[+] Saved critic parameters to {}.".format(critic.lastsavelocation))
             else:
                 iterstat['critic-saved'] = False
 
