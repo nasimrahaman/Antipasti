@@ -270,13 +270,15 @@ class plotter(callback):
         self.datasources = {name: self.renderers[name][0].data_source for name in self.linenames}
 
     def __call__(self, *args, **kwargs):
-        assert all([linename in kwargs.keys() for linename in self.linenames]), "Line names must be in dict of keyword " \
-                                                                                "arguments. The linenames are {} " \
-                                                                                "and the keyword args are {}."\
-            .format(self.linenames, kwargs.keys())
+        # Note: there used to be an assert statement here about linenames not being in kwargs.keys(). These days, a
+        # linename is simply ignored (for the iteration) if it's not passed as a keyword arg.
 
         for linename in self.linenames:
-            # Fetch from kwargs
+            # Fetch from kwargs if it's in there (skip otherwise)
+            # Skip
+            if linename not in kwargs.keys():
+                continue
+            # Fetch
             inp = kwargs[linename]
             # Parse
             if isinstance(inp, (tuple, list)):
