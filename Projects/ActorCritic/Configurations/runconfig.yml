@@ -23,8 +23,8 @@ modelconfig:
   actor-savedir: null
   # Build configuration for critic
   critic-buildconfig: 
-    numinp: 3
-    numout: 3
+    numinp: 6
+    numout: 1
     parampath: null
   critic-savedir: null
   # Loss at nash equilibrium
