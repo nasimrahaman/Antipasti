@@ -271,7 +271,9 @@ class plotter(callback):
 
     def __call__(self, *args, **kwargs):
         assert all([linename in kwargs.keys() for linename in self.linenames]), "Line names must be in dict of keyword " \
-                                                                                "arguments."
+                                                                                "arguments. The linenames are {} " \
+                                                                                "and the keyword args are {}."\
+            .format(self.linenames, kwargs.keys())
 
         for linename in self.linenames:
             # Fetch from kwargs
