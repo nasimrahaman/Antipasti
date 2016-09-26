@@ -32,6 +32,7 @@ def consolidatebatches(*records):
     out = {key: np.concatenate([record[key] for record in records], axis=0) for key in keys}
     return out
 
+
 def path2dict(path):
     if isinstance(path, str):
         return tk.yaml2dict(path)
@@ -41,6 +42,7 @@ def path2dict(path):
         raise NotImplementedError
 
 # ----------------------------------
+
 
 def buildmodels(modelconfig):
     modelconfig = path2dict(modelconfig)
@@ -191,8 +193,10 @@ def fit(actor, critic, trX, fitconfig, tools=None):
             try:
                 batchX, batchY = trX.next()
                 # Append to criticdatadeck
-                criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.array([0.])})
-                actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.array([0.])})
+                # Note: k is a vector of shape (bs,). While numpy broadcasting magic can handle
+                # broadcasting a (1,) vector against (bs,), Theano can't.
+                criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.zeros(shape=(batchX.shape[0],))})
+                actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.zeros(shape=(batchX.shape[0],))})
             except StopIteration:
                 # Iterator might have stopped, but there could be batches left in the criticdatadeck
                 if (len(criticdatadeck) + len(actordatadeck)) == 0:
@@ -232,7 +236,7 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 # Increment iteration counter
                 iterstat['actor-iternum'] += 1
                 # Add to experience database for future replay
-                edb.append({'x': raw['x'], 'y': actorout['actor-y'], 'k': np.array([1.])})
+                edb.append({'x': raw['x'], 'y': actorout['actor-y'], 'k': np.ones(shape=(raw['x'].shape[0],))})
             else:
                 # Skip training
                 actorout = {}
@@ -320,7 +324,7 @@ def run(runconfig):
     # Set up live plots
     if runconfig['live-plots']:
         print("[+] Live plots ON.")
-        tools['plotter'] = tk.plotter(linenames=['Actor-Loss', 'Critic-Loss'], colors=['navy', 'firebrick'])
+        tools['plotter'] = tk.plotter(linenames=['actor-L', 'critic-L'], colors=['navy', 'firebrick'])
     else:
         print("[+] Live plots OFF.")
 
@@ -349,7 +353,6 @@ if __name__ == '__main__':
     import argparse
     import yaml
     import sys
-    import os
     import imp
 
     # Parse arguments
