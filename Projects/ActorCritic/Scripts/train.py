@@ -362,7 +362,7 @@ if __name__ == '__main__':
     import socket
 
     # fatchicken runs Pycharm while everyone else relies on the CLI.
-    isfatchicken = socket.gethostname() == 'fatchicken' 
+    isfatchicken = socket.gethostname() == 'fatchicken'
 
     # Parse arguments
     parsey = argparse.ArgumentParser()
