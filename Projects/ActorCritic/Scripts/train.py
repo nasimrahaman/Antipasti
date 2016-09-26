@@ -118,6 +118,7 @@ def configure(modelconfig):
     else:
         critic.getupdates(method='adam')
 
+    print("[+] Compiling Actor...")
     # Compile trainers
     # In addition to loss and cost, actor should also return it's output such that the critic can be trained.
     actor.classifiertrainer = A.function(inputs={'x': actor.x},
@@ -125,10 +126,11 @@ def configure(modelconfig):
                                          updates=actor.updates, allow_input_downcast=True, on_unused_input='warn')
     actor.classifier = A.function(inputs=[actor.x], outputs=actor.y, allow_input_downcast=True)
 
+    print("[+] Compiling Critic...")
     # Remember that the input to the critic is the input and output to the actor, concatenated. However, the
     # concatenation happens in theano-space, so the compiled function takes just the input to and output from the actor
     # as its input.
-    critic.classifiertrainer = A.function(inputs={'xx': actor.x, 'xy': actor.y, 'k': k},
+    critic.classifiertrainer = A.function(inputs=OrderedDict([('xx', actor.x), ('xy', actor.y), ('k', k)]),
                                           outputs={'critic-C': critic.C, 'critic-L': critic.L,
                                                    'critic-y': critic.y.flatten(ndim=2).mean(axis=1), 'k': k},
                                           updates=critic.updates, allow_input_downcast=True, on_unused_input='warn')
@@ -220,9 +222,6 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 raw = fetch(criticdatadeck)
                 # Consolidate to a common batch for the classifier
                 critbatch = consolidatebatches(exp, raw)
-
-                import pdb
-                pdb.set_trace()
 
                 # Train
                 criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch['y'], k=critbatch['k'])
@@ -360,12 +359,24 @@ if __name__ == '__main__':
     import yaml
     import sys
     import imp
+    import socket
+
+    # fatchicken runs Pycharm while everyone else relies on the CLI.
+    isfatchicken = socket.gethostname() == 'fatchicken' 
 
     # Parse arguments
     parsey = argparse.ArgumentParser()
     parsey.add_argument("configset", help="Configuration file.")
     parsey.add_argument("--device", help="Device to use (overrides configuration file).", default=None)
-    args = parsey.parse_args()
+
+    # Pycharm debugging
+    if not isfatchicken:
+        args = parsey.parse_args()
+    else:
+        configset = '/home/nrahaman/LittleHeronHDD2/Neuro/ConvNet-Backups/ActorCritic/ICv1-ICv1-CREMI-0/' \
+                    'Configurations/simplerunconfig.yml'
+        device = 'gpu0'
+        args = argparse.Namespace(configset=configset, device=device)
 
     # Load configuration dict
     with open(args.configset) as configfile:
@@ -387,7 +398,7 @@ if __name__ == '__main__':
     from theano.sandbox.cuda import use
     use(device)
 
-    from collections import deque
+    from collections import deque, OrderedDict
     import numpy as np
     import theano as th
     import theano.tensor as T
