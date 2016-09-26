@@ -2,6 +2,7 @@ __doc__ = """"Unified Theano/Tensorflow backend."""
 
 import sys
 from warnings import warn
+from collections import OrderedDict
 
 import numpy as np
 
@@ -782,7 +783,10 @@ class function(object):
         if args:
             funcargs = list(pyk.flatten(args))
         else:
-            funcargs = list(pyk.flatten(kwargs.values()))
+            # The sad thing is the fact that kwargs is not ordered - and the dict.keys() and dict.values() aren't
+            # necessarily consistent. This requires the kwargs dict to be reordered (as an ordered dict) according to
+            # self.inputs, which is hopefully an OrderedDict.
+            funcargs = list(pyk.flatten(OrderedDict((key, kwargs[key]) for key in self.inputs.keys()).values()))
 
         # Evaluate function
         outlist = pyk.obj2list(self._thfunction(*funcargs), ndarray2list=False)
