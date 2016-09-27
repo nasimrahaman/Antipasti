@@ -83,7 +83,15 @@ def inceptionize(streams):
     return rep + module + mer
 
 
-def build(numinp=3, numout=3, parampath=None):
+def build(numinp=3, numout=3, lastlayer='sigmoid', parampath=None):
+    # Check input
+    assert lastlayer in ['sigmoid', 'linear']
+
+    if lastlayer == 'sigmoid':
+        ll = cls
+    else:
+        ll = cll
+
     # Build the networkdparam), 0., dparam) for dparam in dC]
     # Return
     # --- a1 --- b1 --- --- c1 --- d1 --- d2 --- c2 --- --- b1 --- a1 ---
@@ -121,7 +129,7 @@ def build(numinp=3, numout=3, parampath=None):
          cl(60, 48, [3, 3]) + \
          usl()
 
-    a2 = drl() + cl(48, 32, [9, 9]) + cl(32, 16, [5, 5]) + cl(16, 16, [3, 3]) + cls(16, numout, [1, 1])
+    a2 = drl() + cl(48, 32, [9, 9]) + cl(32, 16, [5, 5]) + cl(16, 16, [3, 3]) + ll(16, numout, [1, 1])
 
     # Putting it together
     interceptorv1 = a1 + b1 + repl(2) + (c1 + d1 + d2 + c2) * idl() + merl(2) + b2 + a2
