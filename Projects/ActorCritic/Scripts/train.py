@@ -87,19 +87,22 @@ def configure(modelconfig):
     # Set up critic's loss
     # Make a relu function for the critic's loss
     relu = lambda x: T.switch(x > 0., x, 0.)
-    # Make k variable (for the critic). It has the shape (bs,)
+    # Make k variable (for the critic). It has the shape (bs,), and k = 1 implies the prediction is legit
+    # (i. e. ground truth) whereas k = -1 implies the prediction is that of the network.
     k = critic.baggage['k'] = T.vector('k')
     # Make loss. Note that critic.y.shape = (bs, 1, nr, nc). Convert to (bs, nr * nc) and sum along the second axis
     # before multiplying with k to save computation. The resulting vector of shape (bs,) (after having applied RELU)
     # and is averaged to obtain a scalar loss. The nash energy gives the loss at ground state.
     critic.L = relu(k * (critic.y.flatten(ndim=2).mean(axis=1) + np.float32(modelconfig['nashenergy']))).mean()
-    # Add regularizer
+    # Add regularizer (L2 on the last layer is somewhat intentional. A more direct approach would be to penalize the 
+    # output norm, but we'll save that for another day.)
     critic.C = critic.L + nt.lp(critic.params, regterms=[(2, 0.0005)])
     # Compute gradients
     critic.dC = T.grad(critic.C, wrt=critic.params)
     # Done.
 
-    # Set up actor's loss
+    # Set up actor's loss. Actor's job is to pull down critic's output, which implies the critic outputs large
+    # values ('energies') for network predictions and small values for ground truth images.
     # This is simply the mean of the critic's output. Backprop takes care of the rest.
     actor.L = critic.y.mean()
     actor.C = actor.L + nt.lp(actor.params, regterms=[(2, 0.0005)])
@@ -197,8 +200,8 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 # Append to criticdatadeck
                 # Note: k is a vector of shape (bs,). While numpy broadcasting magic can handle
                 # broadcasting a (1,) vector against (bs,), Theano can't.
-                criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.zeros(shape=(batchX.shape[0],))})
-                actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.zeros(shape=(batchX.shape[0],))})
+                criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.ones(shape=(batchX.shape[0],))})
+                actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.ones(shape=(batchX.shape[0],))})
             except StopIteration:
                 # Iterator might have stopped, but there could be batches left in the criticdatadeck
                 if (len(criticdatadeck) + len(actordatadeck)) == 0:
@@ -225,6 +228,10 @@ def fit(actor, critic, trX, fitconfig, tools=None):
 
                 # Train
                 criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch['y'], k=critbatch['k'])
+
+                # Evaluate critic performance
+                criticout['critic-performance'] = (-criticout['k'] * criticout['critic-y']).mean()
+
                 # Increment iteration counter
                 iterstat['critic-iternum'] += 1
             else:
@@ -239,7 +246,7 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 # Increment iteration counter
                 iterstat['actor-iternum'] += 1
                 # Add to experience database for future replay
-                edb.append({'x': raw['x'], 'y': actorout['actor-y'], 'k': np.ones(shape=(raw['x'].shape[0],))})
+                edb.append({'x': raw['x'], 'y': actorout['actor-y'], 'k': -np.ones(shape=(raw['x'].shape[0],))})
             else:
                 # Skip training
                 actorout = {}
@@ -314,7 +321,7 @@ def run(runconfig):
                                                 tk.monitorfactory('Actor-Loss', 'actor-L', float),
                                                 tk.monitorfactory('Critic-Cost', 'critic-C', float),
                                                 tk.monitorfactory('Critic-Loss', 'critic-L', float),
-                                                tk.monitorfactory('Critic-Prediction', 'critic-y', float)])
+                                                tk.monitorfactory('Critic-Performance', 'critic-performance', float)])
 
     # Set up logs
     if 'logfile' in runconfig.keys():
