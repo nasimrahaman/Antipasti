@@ -82,7 +82,6 @@ def prepfunctions():
         else:
             return batch[:, (batch.shape[1]/2):(batch.shape[1]/2 + 1), ...]
 
-
     # Function to add the complement of a batch as an extra channel
     def catcomplement(batch):
         # Compute complement
@@ -107,7 +106,7 @@ def prepfunctions():
 
             # Map cooordinates from image to distorted index set
             transformedimages = [map_coordinates(image, distinds, mode='reflect', order=1).reshape(imshape)
-                                for image in images]
+                                 for image in images]
 
             return transformedimages
 
