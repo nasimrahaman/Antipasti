@@ -1,0 +1,44 @@
+# General settings
+device: gpu
+verbose: true
+live-plots: true
+
+# Paths to aux-files
+logfile: null
+relayfile: null
+
+# Configuration for the data-logistics (outsourced to a different file)
+dataplatepath: null
+dataconf: null
+
+# Configuration for building and configuring models
+modelconfig:
+  # Path to where the model file is saved
+  path: null
+  # Build configuration for actor
+  actor-buildconfig: 
+    numinp: 3
+    numout: 3
+    lastlayer: 'sigmoid'
+    parampath: null
+  actor-savedir: null
+  # Build configuration for critic
+  critic-buildconfig: 
+    numinp: 6
+    numout: 1
+    lastlayer: 'linear'
+    parampath: null
+  critic-savedir: null
+  # Loss at nash equilibrium
+  nashenergy: 0.5
+
+# Configuration for fitting the models
+fitconfig: 
+  # Maximum length of critic's experience buffer
+  edb-maxlen: 100
+  # Number of epochs and iterations
+  numepochs: 50
+  maxiter: null
+  # Save frequencies
+  actor-save-every: 200
+  critic-save-every: 200
