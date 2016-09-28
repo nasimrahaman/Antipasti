@@ -94,7 +94,7 @@ def configure(modelconfig):
     # before multiplying with k to save computation. The resulting vector of shape (bs,) (after having applied RELU)
     # and is averaged to obtain a scalar loss. The nash energy gives the loss at ground state.
     critic.L = relu(k * (critic.y.flatten(ndim=2).mean(axis=1) + np.float32(modelconfig['nashenergy']))).mean()
-    # Add regularizer (L2 on the last layer is somewhat intentional. A more direct approach would be to penalize the 
+    # Add regularizer (L2 on the last layer is somewhat intentional. A more direct approach would be to penalize the
     # output norm, but we'll save that for another day.)
     critic.C = critic.L + nt.lp(critic.params, regterms=[(2, 0.0005)])
     # Compute gradients
