@@ -1,3 +1,29 @@
 loadconfig:
   raw-path: null
   gt-path: null
+
+# Configuration for preprocessing functions
+prepconfig: 
+  edt: 0.7
+  elastic: true
+  elastic-params: 
+    sigma: 50.
+    alpha: 2000.
+  dropslice: false
+  random-rotate: true
+  random-flip: true
+  random-flip-z: true
+
+batchsize: 1
+nhoodsize:
+  - 3
+  - 512
+  - 512
+stride: 
+  - 1
+  - 1
+  - 1
+ds:
+  - 1
+  - 1
+  - 1
