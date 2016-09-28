@@ -1,8 +1,9 @@
 # Add to path
 import sys
+import os
+sys.path.append(os.path.abspath('{}/../'.format(__file__)))
 
-sys.path.append('/export/home/nrahaman/Python/Antipasti/Projects/ActorCritic/Boilerplate')
-import prepfunctions_cremi
+import prepfunctions_fib25
 
 import Antipasti.trainkit as tk
 import Antipasti.netdatautils as ndu
@@ -36,7 +37,7 @@ def buildpreptrains(prepconfig):
     assert not prepconfig['include']['synapses'], "Only membranes for now."
 
     # Get prepfunctions
-    pf = prepfunctions_cremi.prepfunctions()
+    pf = prepfunctions_fib25.prepfunctions()
 
     # Build preptrain for raw data
     ptX = pk.preptrain([pk.im2double(nbit=8), pk.cast(), pk.normalizebatch(), pf['time2channel']])
@@ -70,61 +71,37 @@ def buildpreptrains(prepconfig):
 def load(loadconfig):
     loadconfig = path2dict(loadconfig)
     # Load from H5
-    datasets = {dsetname: {dsetobj: ndu.fromh5(path=dsetpath,
-                                               datapath=loadconfig['h5paths'][dsetname][dsetobj],
-                                               dataslice=eval(loadconfig['slices'][dsetname]))
-                           for dsetobj in ['raw', 'gt'] if loadconfig['h5paths'][dsetname][dsetobj] is not 'x'}
-                for dsetname, dsetpath in loadconfig['paths'].items()}
+    datasets = {'raw': ndu.fromh5(loadconfig['raw-path']),
+                'gt': ndu.fromh5(loadconfig['gt-path'])}
 
     return datasets
 
 
 def fetchfeeder(dataconf, givens=None):
     dataconf = path2dict(dataconf)
-    # Default for givens
-    givens = {} if givens is None else givens
 
-    # Load datasets if need be
-    if 'datasets' not in givens.keys():
-        datasets = load(dataconf['loadconfig'])
-    else:
-        datasets = givens['datasets']
+    # Load dataset from file
+    datasets = load(dataconf['loadconfig'])
 
-    # Build preptrain if need be
-    if 'preptrains' not in givens.keys():
-        preptrains = buildpreptrains(dataconf['prepconfig'])
-    else:
-        preptrains = givens['preptrains']
-
-    # Do we need to weave feeders from datasets A, B and C?
-    if 'dsetname' not in givens.keys():
-        dsetname = dataconf['dataset']
-    else:
-        dsetname = givens['dsetname']
+    # Build preptrain
+    preptrains = buildpreptrains(dataconf['prepconfig'])
 
     # Make feeders (only membranes for now)
-    if dsetname == 'all':
-        # Build feeder with data from all datasets
-        feeders = []
-        for dsetname, dset in datasets.items():
-            # Prepare givens for the recursive call
-            givens = {'dsetname': dsetname, 'datasets': datasets, 'preptrains': preptrains}
-            # Make the call
-            feeders.append(fetchfeeder(dataconf, givens))
-        # Weave all feeders together to one feeder
-        feeder = ndk.feederweave(feeders)
-    else:
-        # Build feeder with data from just one (given) dataset.
-        # Build ground-truth feeder
-        gt = ndk.cargo(data=datasets[dsetname]['gt'],
-                       axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
-                       ds=dataconf['ds'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
-                       preptrain=preptrains['Y'])
-        # Build raw data feeder
-        rd = gt.clonecrate(data=datasets[dsetname]['raw'], syncgenerators=True)
-        rd.preptrain = preptrains['X']
-        # Zip feeders
-        feeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
+    # Build ground-truth feeder
+    gt = ndk.cargo(data=datasets['gt'],
+                   axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
+                   ds=dataconf['ds'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
+                   preptrain=preptrains['Y'])
+
+    # Build raw data feeder
+    rd = gt.clonecrate(data=datasets['raw'], syncgenerators=True)
+    rd.preptrain = preptrains['X']
+
+    # Build weight feeder
+    # TODO
+
+    # Zip feeders
+    feeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
 
     return feeder
 
