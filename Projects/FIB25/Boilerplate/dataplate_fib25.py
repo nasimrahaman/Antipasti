@@ -33,9 +33,6 @@ def path2dict(path):
 def buildpreptrains(prepconfig):
     prepconfig = path2dict(prepconfig)
 
-    # Only membranes for now
-    assert not prepconfig['include']['synapses'], "Only membranes for now."
-
     # Get prepfunctions
     pf = prepfunctions_fib25.prepfunctions()
 
@@ -47,8 +44,8 @@ def buildpreptrains(prepconfig):
                        [pf['disttransform'](gain=prepconfig['edt'])] if prepconfig['edt'] is not None else [] +
                        [pk.cast()])
 
-    # Build preptrain for the zipped XY feeder
-    ptXY = pk.preptrain([])
+    # Build preptrain for the zipped XY feeder (start with weightmap maker)
+    ptXY = pk.preptrain([pf['wmapmaker']])
 
     # Elastic transformations if requested
     if prepconfig['elastic']:
@@ -97,10 +94,7 @@ def fetchfeeder(dataconf, givens=None):
     rd = gt.clonecrate(data=datasets['raw'], syncgenerators=True)
     rd.preptrain = preptrains['X']
 
-    # Build weight feeder
-    # TODO
-
-    # Zip feeders
+    # Zip feeders (weightmaps come from wmapmaker in preptrains['XY'])
     feeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
 
     return feeder
