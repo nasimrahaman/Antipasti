@@ -1,6 +1,0 @@
-# Training signals
-actor-training-signal: 1
-critic-training-signal: 1
-# Learning rates
-actor-learningrate: 0.0002
-critic-learningrate: 0.0002
