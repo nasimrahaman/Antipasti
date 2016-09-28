@@ -32,29 +32,6 @@ def prepfunctions():
 
         return fun
 
-    def seg2affgraph():
-        def fun(batch):
-            def labels2affgraph(chim):
-                # chim.shape = (3, r, c)
-                # im.shape = (1, r, c). Get rid of the first dimension.
-                im = chim[1, ...]
-                # Compute the convolutions:
-                # y-shift
-                ysh = convolve(im, np.array([0, -1, 1]).reshape(3, 1)) != 0
-                # x-shift:
-                xsh = convolve(im, np.array([0, -1, 1]).reshape(1, 3)) != 0
-                # z-shift
-                zsh = (convolve2(chim, np.array([0, -1, 1]).reshape(3, 1, 1), 'valid') != 0)[0]
-                # Concatenate along channels and Return
-                return np.array([ysh, xsh, zsh])
-
-            # Get rid of all but the central slice
-            # chim.shape = (3, r, c)
-            batch = np.array([labels2affgraph(chim) for chim in batch]).astype('float32')
-            return batch
-
-        return fun
-
     # Function to apply exp-euclidean distance transform
     def disttransform(gain):
 
@@ -63,7 +40,7 @@ def prepfunctions():
             batch = 1. - batch
             # Merge batch and channel dimensions
             bshape = batch.shape
-            batch = batch.reshape((bshape[0]*bshape[1], bshape[2], bshape[3]))
+            batch = batch.reshape((bshape[0] * bshape[1], bshape[2], bshape[3]))
             # Distance transform by channel
             transbatch = np.array([np.exp(-gain * distance_transform_edt(img)) for img in batch])
             # Reshape batch and return
@@ -78,9 +55,9 @@ def prepfunctions():
     # Trim out all channels except the center
     def trim2center(batch):
         if batch.shape[1] % 2 == 0:
-            return batch[:, (batch.shape[1]/2):(batch.shape[1]/2 + 1), ...]
+            return batch[:, (batch.shape[1] / 2):(batch.shape[1] / 2 + 1), ...]
         else:
-            return batch[:, (batch.shape[1]/2):(batch.shape[1]/2 + 1), ...]
+            return batch[:, (batch.shape[1] / 2):(batch.shape[1] / 2 + 1), ...]
 
     # Function to add the complement of a batch as an extra channel
     def catcomplement(batch):
@@ -110,65 +87,6 @@ def prepfunctions():
 
             return transformedimages
 
-        def _afgfunc(batch):
-            batchX, batchY, batchYs = batch
-            # batchX.shape = (bs, 3, r, c)
-            # batchY.shape = (bs, 2, r, c)
-            # batchYs.shape = (bs, 3, r, c)
-            assert batchX.shape[1] == 3
-            assert batchY.shape[1] == 3
-            assert batchYs.shape[1] == 3
-            outX, outY, outYs = [], [], []
-            # Loop over batches (in zip)
-            for sampleX, sampleY, sampleYs in zip(batchX, batchY, batchYs):
-                # We don't want to transform the z affinity map, hence the [:-1]
-                # imagelist = list(sampleX) + list(sampleY)[:-1] + list(sampleYs)
-                imagelist = list(sampleX) + list(sampleY) + list(sampleYs)
-                processedlist = _elastictransform3D(*imagelist)
-                # First 3 elements are X's
-                outlX = processedlist[0:3]
-                # Next 2 elements are the transformed y and x affinity maps. Add in the third, z affinity map
-                # outlY = processedlist[3:5] + [list(sampleY)[-1]]
-                outlY = processedlist[3:6]
-                outlYs = processedlist[6:]
-                # convert to array and append
-                outX.append(np.array(outlX))
-                outY.append(np.array(outlY))
-                outYs.append(np.array(outlYs))
-            # Make numpy arays
-            outX = np.array(outX)
-            outY = np.array(outY)
-            outYs = np.array(outYs)
-
-            # Shape assertions
-            assert outX.shape[1] == 3
-            assert outY.shape[1] == 3
-            assert outYs.shape[1] == 3
-
-            return outX, outY, outYs
-
-        def _func(batch):
-            batchX, batchY, batchYs = batch
-            outX, outY, outYs = [], [], []
-            for sampleX, sampleY, sampleYs in zip(batchX, batchY, batchYs):
-                # Build a list of images to have processed by _elastictransform3D
-                imagelist = list(it.chain.from_iterable(zip(*[list(sampleX), list(sampleY), list(sampleYs)])))
-                # Process
-                processedlist = _elastictransform3D(*imagelist)
-                # Postprocess
-                outlX, outlY, outlYs = np.array(processedlist[0::3]), np.array(processedlist[1::3]), \
-                                       np.array(processedlist[2::3])
-                # Append to batch list
-                outX.append(outlX)
-                outY.append(outlY)
-                outYs.append(outlYs)
-            # Make numpy arrays
-            outX = np.array(outX)
-            outY = np.array(outY)
-            outYs = np.array(outYs)
-            # Return
-            return outX, outY, outYs
-
         def _func2(batches):
 
             # Get the number of channels for all elements in batches
@@ -193,10 +111,7 @@ def prepfunctions():
 
             return outs
 
-        if affgraph:
-            return _afgfunc
-        else:
-            return _func2
+        return _func2
 
     def randomocclude(size=32, frequency=0.2, rng=np.random.RandomState(42), noise=True, gloc=0.,
                       gstd=1., interweave=True):
@@ -204,9 +119,9 @@ def prepfunctions():
         def occlude(*images):
             imshape = images[0].shape
             # Get random mask
-            randmaskshape = [ishp/size for ishp in imshape]
+            randmaskshape = [ishp / size for ishp in imshape]
             dsrandmask = rng.binomial(1, frequency, size=randmaskshape)
-            randmask = np.repeat(np.repeat(dsrandmask, size, axis=0),  size, axis=1)
+            randmask = np.repeat(np.repeat(dsrandmask, size, axis=0), size, axis=1)
             if noise:
                 # Make white noise
                 wnoise = rng.normal(loc=gloc, scale=gstd, size=imshape)
@@ -250,20 +165,6 @@ def prepfunctions():
             ds8 = pk.image2batchfunc(lambda im: zoom(im, zoom=0.125, order=1, mode='reflect'))
             # Downsample and return
             return batchX, batchY, ds8(batchY), ds4(batchY), ds2(batchY), batchY
-        return _func
-
-    # Function to remove synapses
-    def rmsyn():
-        def _func(batch):
-            batchX, batchY, batchYs = batch
-            return batchX, batchY
-        return _func
-
-    # Function to remove membranes
-    def rmmem():
-        def _func(batch):
-            batchX, batchY, batchYs = batch
-            return batchX, batchYs
         return _func
 
     # Function to drop the central frame of the raw data
@@ -318,10 +219,12 @@ def prepfunctions():
                 print("Input shape is: {}".format(batch.shape))
 
             if not pairflip:
-                if debug: print("Pathway 1.")
+                if debug:
+                    print("Pathway 1.")
                 batch = batch[:, ::-1, ...]
             else:
-                if debug: print("Pathway 2.")
+                if debug:
+                    print("Pathway 2.")
                 assert batch.shape[1] == 6
                 batch = np.concatenate((batch[:, :3, ...][:, ::-1, ...], batch[:, 3:, ...][:, ::-1, ...]), axis=1)
 
@@ -365,9 +268,24 @@ def prepfunctions():
 
         return _func
 
-    def jitter(magnitude):
-        def _func(batch):
-            raise NotImplementedError
-        pass
+    # Make weight maps
+    def wmapmaker(eps=1e-6):
+        # Make filter function and batchify
+        @pk.image2batchfunc
+        def box(img):
+            # Smooth along x
+            smx = convolve(img, np.array([1., 1., 1.]).reshape(1, 3))
+            sm = convolve(smx, np.array([1., 1., 1.]).reshape(3, 1))
+            return sm.astype('float32')
+
+        def _func(batches):
+            # Fetch X and Y batches
+            batchX, batchY = batches[0:2]
+            # Find patches of zeros. This can be done by convolving the raw data with a box filter and thresholding at
+            # a very small value.
+            batchW = (box(batchX) > eps).astype('float32')
+            return batchW
+
+        return _func
 
     return vars()
