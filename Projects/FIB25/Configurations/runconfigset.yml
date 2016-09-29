@@ -1,0 +1,16 @@
+device: gpu0
+
+dplpath: null
+dataconf: null
+
+modelpath: null
+buildconfig: 
+  N: 30
+  depth: 5
+  usewmap: true
+
+runconfig: 
+  relayfile: null
+  logfile: null
+  picklejar: null
+  use-wmaps: true
