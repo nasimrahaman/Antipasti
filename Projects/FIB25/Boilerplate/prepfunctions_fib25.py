@@ -284,8 +284,29 @@ def prepfunctions():
             # Find patches of zeros. This can be done by convolving the raw data with a box filter and thresholding at
             # a very small value.
             batchW = (box(batchX) > eps).astype('float32')
-            return batchW
+            return batchX, batchY, batchW
 
+        return _func
+
+    # Prune batch
+    def batchpruner():
+        # Get rid of the batches where weights are zero.
+        def _func(batches):
+            bs = batches[0].shape[0]
+            if bs == 1:
+                return batches
+            else:
+                batchW = batches[2]
+                # Get all batches that are bad
+                stalebatches = np.all(np.isclose(batchW, 0), axis=(1, 2, 3))
+                # Get rid of those batches
+                if np.all(stalebatches):
+                    # Do nothing. This will be taken care of by the batch gating mechanism
+                    pass
+                else:
+                    # Get rid of individual batches
+                    batches = [batch[stalebatches] for batch in batches]
+                return tuple(batches)
         return _func
 
     return vars()

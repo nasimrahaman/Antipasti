@@ -4,6 +4,7 @@ import os
 sys.path.append(os.path.abspath('{}/../'.format(__file__)))
 
 import prepfunctions_fib25
+import tools
 
 import Antipasti.trainkit as tk
 import Antipasti.netdatautils as ndu
@@ -47,22 +48,25 @@ def buildpreptrains(prepconfig):
     # Build preptrain for the zipped XY feeder (start with weightmap maker)
     ptXY = pk.preptrain([pf['wmapmaker']])
 
+    # Build preptrain for the zipped feeder with weights
+    ptXYW = pk.preptrain([])
+
     # Elastic transformations if requested
     if prepconfig['elastic']:
-        ptXY.append(pf['elastictransform'](**prepconfig['elastic-params']))
+        ptXYW.append(pf['elastictransform'](**prepconfig['elastic-params']))
 
     # Random rotate if requested
     if prepconfig['random-rotate']:
-        ptXY.append(pf['randomrotate']())
+        ptXYW.append(pf['randomrotate']())
 
     # Random flip if requested
     if prepconfig['random-flip']:
-        ptXY.append(pf['randomflip']())
+        ptXYW.append(pf['randomflip']())
 
     if prepconfig['random-flip-z']:
-        ptXY.append(pf['randomflipz']())
+        ptXYW.append(pf['randomflipz']())
 
-    return {'X': ptX, 'Y': ptY, 'XY': ptXY}
+    return {'X': ptX, 'Y': ptY, 'XY': ptXY, 'XYW': ptXYW}
 
 
 def load(loadconfig):
@@ -74,7 +78,7 @@ def load(loadconfig):
     return datasets
 
 
-def fetchfeeder(dataconf, givens=None):
+def fetchfeeder(dataconf):
     dataconf = path2dict(dataconf)
 
     # Load dataset from file
@@ -95,7 +99,10 @@ def fetchfeeder(dataconf, givens=None):
     rd.preptrain = preptrains['X']
 
     # Zip feeders (weightmaps come from wmapmaker in preptrains['XY'])
-    feeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
+    zippedfeeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
+
+    # Gate feeder
+    feeder = ndk.feedergate(zippedfeeder, tools.skipper, preptrain=preptrains['XYW'])
 
     return feeder
 
