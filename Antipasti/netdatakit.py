@@ -843,6 +843,7 @@ class feederweave(object):
         self.preptrains = preptrains
 
         self.iterator = None
+        self.restartgenerator()
 
     def batchstream(self):
         while True:
@@ -856,6 +857,56 @@ class feederweave(object):
         for gen in self.gens:
             if hasattr(gen, 'restartgenerator'):
                 gen.restartgenerator()
+        self.iterator = self.batchstream()
+
+    def next(self):
+        if self.iterator is None:
+            self.restartgenerator()
+        return self.iterator.next()
+
+    def __iter__(self):
+        return self
+
+
+class feedergate(object):
+    def __init__(self, gen, condition, preptrain=None):
+        """
+        Given a feeder `gen` and a condition function `condition`, the yield of the generator is passed to the
+        condition. If the condition returns true, the batch is let through; otherwise, the next batch is fetched.
+        Finally, the preptrain is applied and the results are yielded.
+        """
+        # Checks
+        assert hasattr(gen, 'restartgenerator') and hasattr(gen, 'next'), "Generator must be an Antipasti feeder " \
+                                                                          "(i.e. must have the attributes " \
+                                                                          "'restartgenerator' and 'next')"
+        assert callable(condition), "Condition must be a callable."
+
+        # Meta
+        self.gen = gen
+        self.condition = condition
+        self.preptrain = pk.preptrain([]) if preptrain is None else preptrain
+
+        self.iterator = None
+        self.restartgenerator()
+
+    def batchstream(self):
+        while True:
+            try:
+                while True:
+                    # Get generator output
+                    genout = self.gen.next()
+                    if self.condition(genout):
+                        # Let through
+                        yield self.preptrain(genout)
+                        break
+                    else:
+                        continue
+            except StopIteration:
+                return
+
+    def restartgenerator(self):
+        if hasattr(self.iterator, 'restartgenerator'):
+            self.gen.restartgenerator()
         self.iterator = self.batchstream()
 
     def next(self):
