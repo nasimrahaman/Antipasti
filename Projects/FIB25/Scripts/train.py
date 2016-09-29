@@ -35,6 +35,7 @@ def run(net, trX, **runconfig):
     res = net.fit(trX=trX, numepochs=40, verbosity=5, backupparams=200, log=log, trainingcallbacks=cbs,
                   extrarguments={}, relay=relay)
 
+
     if ffd(runconfig, 'picklejar') is not None:
         nu.pickle(res, runconfig['picklejar'] + 'fitlog.save')
 
@@ -86,4 +87,9 @@ if __name__ == '__main__':
     trX = dpl.fetchfeeder(config['dataconf'])
 
     # Run training
-    run(net, trX, **config['runconfig'])
+    try:
+        run(net, trX, **config['runconfig'])
+    except Exception as e:
+        raise e
+    finally:
+        trX.cleanup()
