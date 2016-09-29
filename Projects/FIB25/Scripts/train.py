@@ -31,10 +31,14 @@ def run(net, trX, **runconfig):
     # Bind textlogger to printer
     cbs.callbacklist[0].textlogger = log
 
+    if runconfig['use-wmaps']:
+        extrarguments = {net.baggage['wmap']: -1}
+    else:
+        extrarguments = {}
+
     # Fit
     res = net.fit(trX=trX, numepochs=40, verbosity=5, backupparams=200, log=log, trainingcallbacks=cbs,
-                  extrarguments={}, relay=relay)
-
+                  extrarguments=extrarguments, relay=relay)
 
     if ffd(runconfig, 'picklejar') is not None:
         nu.pickle(res, runconfig['picklejar'] + 'fitlog.save')

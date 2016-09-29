@@ -1,5 +1,6 @@
 
 import theano as th
+import theano.tensor as T
 import numpy as np
 
 import Antipasti.netkit as nk
@@ -182,7 +183,7 @@ def initiate(preinit=None, numinp=None):
 
 # Build network from multiple blocks
 def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstart=0, numinp=3,
-          numout=3, legacy=False, preinit=None):
+          numout=3, legacy=False, preinit=None, usewmap=False):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -222,7 +223,14 @@ def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstar
         net.load(parampath)
 
     net.baggage["learningrate"] = th.shared(value=np.float32(0.0002))
-    net.cost(method='bce', regterms=[(2, 0.0005)])
+
+    # Set up weight maps if required
+    if usewmap:
+        net.baggage["wmap"] = T.tensor4()
+        net.cost(method='bce', wmap=net.baggage['wmap'], regterms=[(2, 0.0005)])
+    else:
+        net.cost(method='bce', regterms=[(2, 0.0005)])
+
     net.getupdates(method='adam', learningrate=net.baggage["learningrate"])
 
     return net
