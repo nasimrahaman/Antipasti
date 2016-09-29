@@ -1,6 +1,6 @@
 loadconfig:
-  raw-path: null
-  gt-path: null
+  raw-path: '/mnt/localdata02/nrahaman/Neuro/Datasets/raw_fib25.h5'
+  gt-path: '/mnt/localdata02/nrahaman/Neuro/Datasets/gt_notprocessed_fib25.h5'
 
 # Configuration for preprocessing functions
 prepconfig: 
@@ -27,3 +27,5 @@ ds:
   - 1
   - 1
   - 1
+
+plotdir: null

@@ -269,13 +269,16 @@ def prepfunctions():
         return _func
 
     # Make weight maps
-    def wmapmaker(eps=1e-6):
+    def wmapmaker(eps=1e-10):
         # Make filter function and batchify
         @pk.image2batchfunc
         def box(img):
-            # Smooth along x
-            smx = convolve(img, np.array([1., 1., 1.]).reshape(1, 3))
-            sm = convolve(smx, np.array([1., 1., 1.]).reshape(3, 1))
+            # 2D convolution
+            kern = np.ones(shape=(3, 3)) * (1./9.)
+            sm = convolve2(img, kern, mode='same')
+            # Separable convolution
+            # smx = convolve(img, np.array([1., 1., 1.]).reshape(1, 3))
+            # sm = convolve(smx, np.array([1., 1., 1.]).reshape(3, 1))
             return sm.astype('float32')
 
         def _func(batches):

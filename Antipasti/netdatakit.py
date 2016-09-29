@@ -19,8 +19,14 @@ import os
 import pykit as pyk
 
 
+# Abstract class for all datafeeders
+class datafeeder(object):
+    def cleanup(self):
+        pass
+
+
 # Class to process volumetric data from HDF5
-class cargo:
+class cargo(datafeeder):
     def __init__(self, h5path=None, pathh5=None, data=None, axistags=None, batchsize=20, nhoodsize=None, ds=None,
                  window=None, stride=None, preload=False, dataslice=None, preptrain=None, shuffleiterator=True):
         """
@@ -86,10 +92,11 @@ class cargo:
         self.preptrain = preptrain
         self.shuffleiterator = shuffleiterator
         self.rngseed = random.randint(0, 100)
+        self.h5file = None
 
         # Read h5 file and dataset, fetch input dimension if h5path and pathh5 given
         if h5path is not None and h5path is not None:
-            h5file = h5.File(h5path)
+            self.h5file = h5file = h5.File(h5path)
             if not preload:
                 self.data = h5file[pathh5]
             else:
@@ -176,7 +183,7 @@ class cargo:
                 raise StopIteration
 
             # Fetch slices from data
-            rawbatch = np.array([self.data[tuple(batchslice)] for batchslice in batchslices])
+            rawbatch = np.array([np.asarray(self.data[tuple(batchslice)]) for batchslice in batchslices])
 
             # Transform batch to the correct shape using the provided axistags
             rawbatch = self.transformbatch(rawbatch)
@@ -306,6 +313,10 @@ class cargo:
         # FIXME The fuck were you thinking?
         return self.batchstream().next()
 
+    # Clean up the mess
+    def cleanup(self):
+        if self.h5file is not None:
+            self.h5file.close()
 
 
 class masker:
@@ -722,7 +733,7 @@ class tincan:
 
 
 # Class to convert any given generator to a Antipasti datafeeder (endowed with a restartgenerator() method)
-class feeder(object):
+class feeder(datafeeder):
     def __init__(self, generator, genargs=None, genkwargs=None, preptrain=None, numworkers=None):
         """
         Convert a given generator to an Antipasti data feeder (endowed with a restartgenerator and batchstream method).
@@ -781,7 +792,7 @@ class feeder(object):
         return self.batchstream().next()
 
 # Class to zip multiple generators
-class feederzip(object):
+class feederzip(datafeeder):
     """
     Zip multiple generators (with or without a restartgenerator method)
     """
@@ -819,9 +830,14 @@ class feederzip(object):
     def next(self):
         return self.batchstream().next()
 
+    def cleanup(self):
+        for gen in self.gens:
+            if hasattr(gen, 'cleanup'):
+                gen.cleanup()
+
 
 # This is the prototype of next generation Antipasti generators.
-class feederweave(object):
+class feederweave(datafeeder):
     def __init__(self, gens, preptrains=None):
         # Meta
         self.gens = gens
@@ -867,8 +883,13 @@ class feederweave(object):
     def __iter__(self):
         return self
 
+    def cleanup(self):
+        for gen in self.gens:
+            if hasattr(gen, 'cleanup'):
+                gen.cleanup()
 
-class feedergate(object):
+
+class feedergate(datafeeder):
     def __init__(self, gen, condition, preptrain=None):
         """
         Given a feeder `gen` and a condition function `condition`, the yield of the generator is passed to the
@@ -916,6 +937,10 @@ class feedergate(object):
 
     def __iter__(self):
         return self
+
+    def cleanup(self):
+        if hasattr(self.gen, 'cleanup'):
+            self.gen.cleanup()
 
 
 def mnist(path=None, batchsize=20, xpreptrain=None, ypreptrain=None, dataset="train", **kwargs):
