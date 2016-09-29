@@ -35,19 +35,32 @@ def path2dict(path):
 def buildpreptrains(prepconfig):
     prepconfig = path2dict(prepconfig)
 
+    # This is how the iterator would look like:
+    # X --- pX ---
+    #             \              X
+    #              > --- pXY --- | --- XYW --->
+    #             /              Y
+    # Y --- pY ---
+
     # Get prepfunctions
     pf = prepfunctions_fib25.prepfunctions()
 
-    # Build preptrain for raw data
-    ptX = pk.preptrain([pk.im2double(nbit=8), pk.cast(), pk.normalizebatch(), pf['time2channel']])
+    # pX
+    ptpX = pk.preptrain([pk.im2double(nbit=8), pf['time2channel']])
 
-    # Build preptrain for ground truth
-    ptY = pk.preptrain([pf['time2channel'], pf['seg2membrane']()] +
-                       [pf['disttransform'](gain=prepconfig['edt'])] if prepconfig['edt'] is not None else [] +
-                       [pk.cast()])
+    # pY
+    ptpY = pk.preptrain([pf['time2channel']])
 
     # Build preptrain for the zipped XY feeder (start with weightmap maker)
-    ptXY = pk.preptrain([pf['wmapmaker']()])
+    ptpXY = pk.preptrain([pf['wmapmaker']()])
+
+    # Build preptrain for raw data (X)
+    ptX = pk.preptrain([pk.normalizebatch()])
+
+    # Build preptrain for ground truth (Y)
+    ptY = pk.preptrain([pf['seg2membrane']()] +
+                       [pf['disttransform'](gain=prepconfig['edt'])] if prepconfig['edt'] is not None else [] +
+                       [pk.cast()])
 
     # Build preptrain for the zipped feeder with weights
     ptXYW = pk.preptrain([])
@@ -67,7 +80,7 @@ def buildpreptrains(prepconfig):
     if prepconfig['random-flip-z']:
         ptXYW.append(pf['randomflipz']())
 
-    return {'X': ptX, 'Y': ptY, 'XY': ptXY, 'XYW': ptXYW}
+    return {'X': ptX, 'Y': ptY, 'pXY': ptpXY, 'XYW': ptXYW, 'pX': ptpX, 'pY': ptpY}
 
 
 def load(loadconfig):
@@ -87,24 +100,30 @@ def fetchfeeder(dataconf):
 
     # Don't use load() to load data to RAM 'cause it's fucking huge. Instead, read from disk on the fly with
     # netdatakit's cargo.
-    # Make feeders (only membranes for now).
+    # Make feeders (only membranes for now). The feeder structure is as follows:
+    # X --- pX ---
+    #             \                    X
+    #              > --- pXY --- G --- | --- XYW --->
+    #             /                    Y
+    # Y --- pY ---
+
     # Build ground-truth feeder
     gt = ndk.cargo(h5path=dataconf['loadconfig']['gt-path'], pathh5='data',
                    axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
                    ds=dataconf['ds'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
-                   preptrain=preptrains['Y'])
+                   preptrain=preptrains['pY'])
 
     # Build raw data feeder
     rd = gt.clonecrate(h5path=dataconf['loadconfig']['raw-path'], pathh5='data', syncgenerators=True)
-    rd.preptrain = preptrains['X']
+    rd.preptrain = preptrains['pX']
 
     # Zip feeders (weightmaps come from wmapmaker in preptrains['XY'])
-    zippedfeeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
+    zippedfeeder = ndk.feederzip([rd, gt], preptrain=preptrains['pXY'])
 
     # Gate feeder
-    # gate = tools.skipper
-    gate = lambda inp: True
-    feeder = ndk.feedergate(zippedfeeder, gate, preptrain=preptrains['XYW'])
+    gate = tools.skipper
+    gatepreptrain = pk.preptrain([pk.funczip((preptrains['X'], preptrains['Y'])), preptrains['XYW']])
+    feeder = ndk.feedergate(zippedfeeder, gate, preptrain=gatepreptrain)
 
     return feeder
 
@@ -129,7 +148,7 @@ def test(dataconf):
         for n, batch in enumerate(batches):
             print("Printing object {} of shape {} to file...".format(n, batch.shape))
             vz.printensor2file(batch, savedir=dataconf['plotdir'], mode='image', nameprefix='N{}--'.format(n))
-            np.save(dataconf['plotdir'] + 'N{}'.format(n), batch)
+            # np.save(dataconf['plotdir'] + 'N{}'.format(n), batch)
 
         print("[+] Done!")
 
