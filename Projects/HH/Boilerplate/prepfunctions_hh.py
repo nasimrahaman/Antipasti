@@ -274,8 +274,9 @@ def prepfunctions():
         @pk.image2batchfunc
         def finddilate(img):
             # Find labeled segments and dilate a patch around them.
-            segim = img > 0
-            dilatedim = binary_dilation(segim, iterations=numdilationiterations)
+            segim = img != 0
+            # dilatedim = binary_dilation(segim, iterations=numdilationiterations)
+            dilatedim = segim
             return dilatedim.astype('float32')
 
         def _func(batches):

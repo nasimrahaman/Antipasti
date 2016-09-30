@@ -86,11 +86,11 @@ def buildpreptrains(prepconfig):
 def load(loadconfig):
     loadconfig = path2dict(loadconfig)
     # Load from H5
-    datasets = {'raw': ndu.fromh5(loadconfig['raw-path']),
-                'gt': ndu.fromh5(loadconfig['gt-path'])}
+    datasets = {'raw': ndu.fromh5(loadconfig['raw-path'], 'data'),
+                'gt': ndu.fromh5(loadconfig['gt-path'], 'data')}
 
     if ffd(loadconfig, 'pad') is not None:
-        datasets = {key: np.pad(dset, eval(loadconfig['pad'])) for key, dset in datasets.items()}
+        datasets = {key: np.lib.pad(dset, tuple(eval(loadconfig['pad'])), 'reflect') for key, dset in datasets.items()}
 
     return datasets
 
@@ -112,13 +112,13 @@ def fetchfeeder(dataconf):
     # Y --- pY ---
 
     # Build ground-truth feeder
-    gt = ndk.cargo(h5path=datasets['gt'],
+    gt = ndk.cargo(data=datasets['gt'],
                    axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
                    ds=dataconf['ds'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
                    preptrain=preptrains['pY'])
 
     # Build raw data feeder
-    rd = gt.clonecrate(h5path=datasets['raw'], syncgenerators=True)
+    rd = gt.clonecrate(data=datasets['raw'], syncgenerators=True)
     rd.preptrain = preptrains['pX']
 
     # Zip feeders (weightmaps come from wmapmaker in preptrains['XY'])
@@ -127,7 +127,8 @@ def fetchfeeder(dataconf):
     # Gate feeder
     if dataconf['prepconfig']['makewmap']:
         # Gate only if a weight map is available
-        gate = tools.skipper
+        # gate = tools.skipper
+        gate = lambda inp: True
     else:
         gate = lambda inp: True
 
