@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.append(os.path.abspath('{}/../'.format(__file__)))
 
-import prepfunctions_fib25
+import prepfunctions_hh
 import tools
 
 import Antipasti.trainkit as tk
@@ -43,7 +43,7 @@ def buildpreptrains(prepconfig):
     # Y --- pY ---
 
     # Get prepfunctions
-    pf = prepfunctions_fib25.prepfunctions()
+    pf = prepfunctions_hh.prepfunctions()
 
     # pX
     ptpX = pk.preptrain([pk.im2double(nbit=8), pf['time2channel']])
@@ -89,6 +89,9 @@ def load(loadconfig):
     datasets = {'raw': ndu.fromh5(loadconfig['raw-path']),
                 'gt': ndu.fromh5(loadconfig['gt-path'])}
 
+    if ffd(loadconfig, 'pad') is not None:
+        datasets = {key: np.pad(dset, eval(loadconfig['pad'])) for key, dset in datasets.items()}
+
     return datasets
 
 
@@ -98,8 +101,9 @@ def fetchfeeder(dataconf):
     # Build preptrain
     preptrains = buildpreptrains(dataconf['prepconfig'])
 
-    # Don't use load() to load data to RAM 'cause it's fucking huge. Instead, read from disk on the fly with
-    # netdatakit's cargo.
+    # Load data to RAM (this is very doable, unlike FIB25)
+    datasets = load(dataconf['loadconfig'])
+
     # Make feeders (only membranes for now). The feeder structure is as follows:
     # X --- pX ---
     #             \                    X
@@ -108,13 +112,13 @@ def fetchfeeder(dataconf):
     # Y --- pY ---
 
     # Build ground-truth feeder
-    gt = ndk.cargo(h5path=dataconf['loadconfig']['gt-path'], pathh5='data',
+    gt = ndk.cargo(h5path=datasets['gt'],
                    axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
                    ds=dataconf['ds'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
                    preptrain=preptrains['pY'])
 
     # Build raw data feeder
-    rd = gt.clonecrate(h5path=dataconf['loadconfig']['raw-path'], pathh5='data', syncgenerators=True)
+    rd = gt.clonecrate(h5path=datasets['raw'], syncgenerators=True)
     rd.preptrain = preptrains['pX']
 
     # Zip feeders (weightmaps come from wmapmaker in preptrains['XY'])

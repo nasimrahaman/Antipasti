@@ -3,7 +3,7 @@ __doc__ = "Preprocessing functions for CREMI."
 import numpy as np
 from scipy.ndimage import convolve
 from scipy.signal import convolve as convolve2
-from scipy.ndimage.morphology import distance_transform_edt
+from scipy.ndimage.morphology import distance_transform_edt, binary_dilation
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.interpolation import map_coordinates, zoom
 
@@ -269,24 +269,21 @@ def prepfunctions():
         return _func
 
     # Make weight maps
-    def wmapmaker(eps=1e-10):
+    def wmapmaker(eps=1e-10, numdilationiterations=2):
         # Make filter function and batchify
         @pk.image2batchfunc
-        def box(img):
-            # 2D convolution
-            kern = np.ones(shape=(3, 3)) * (1./9.)
-            sm = convolve2(img, kern, mode='same')
-            # Separable convolution
-            # smx = convolve(img, np.array([1., 1., 1.]).reshape(1, 3))
-            # sm = convolve(smx, np.array([1., 1., 1.]).reshape(3, 1))
-            return sm.astype('float32')
+        def finddilate(img):
+            # Find labeled segments and dilate a patch around them.
+            segim = img > 0
+            dilatedim = binary_dilation(segim, iterations=numdilationiterations)
+            return dilatedim.astype('float32')
 
         def _func(batches):
             # Fetch X and Y batches
             batchX, batchY = batches[0:2]
             # Find patches of zeros. This can be done by convolving the raw data with a box filter and thresholding at
             # a very small value.
-            batchW = (box(batchX) > eps).astype('float32')
+            batchW = (finddilate(batchX) > eps).astype('float32')
             return batchX, batchY, batchW
 
         return _func
