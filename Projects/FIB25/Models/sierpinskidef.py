@@ -231,7 +231,7 @@ def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstar
     else:
         net.cost(method='bce', regterms=[(2, 0.0005)])
 
-    net.getupdates(method='adam', learningrate=net.baggage["learningrate"])
+    net.getupdates(method='momsgd', learningrate=net.baggage["learningrate"], nesterov=True)
 
     if savedir is not None:
         net.savedir = savedir
