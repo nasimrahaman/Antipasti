@@ -41,11 +41,11 @@ def run(net, trX, **runconfig):
                 bY = kwargs['funin'][1]
                 # Print
                 vz.printensor2file(ny, savedir=runconfig['live-print']['printdir'], mode='image',
-                                   nameprefix='PR-iter-{}-'.format(kwargs['iternum']))
+                                   nameprefix='PR-'.format(kwargs['iternum']))
                 vz.printensor2file(bX, savedir=runconfig['live-print']['printdir'], mode='image',
-                                   nameprefix='RW-iter-{}-'.format(kwargs['iternum']))
+                                   nameprefix='RW-'.format(kwargs['iternum']))
                 vz.printensor2file(bY, savedir=runconfig['live-print']['printdir'], mode='image',
-                                   nameprefix='GT-iter-{}-'.format(kwargs['iternum']))
+                                   nameprefix='GT-'.format(kwargs['iternum']))
             else:
                 return
 
