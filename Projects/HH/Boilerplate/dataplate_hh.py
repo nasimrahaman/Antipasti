@@ -127,8 +127,7 @@ def fetchfeeder(dataconf):
     # Gate feeder
     if dataconf['prepconfig']['makewmap']:
         # Gate only if a weight map is available
-        # gate = tools.skipper
-        gate = lambda inp: True
+        gate = tools.skipper
     else:
         gate = lambda inp: True
 

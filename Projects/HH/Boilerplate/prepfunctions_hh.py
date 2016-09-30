@@ -269,14 +269,13 @@ def prepfunctions():
         return _func
 
     # Make weight maps
-    def wmapmaker(eps=1e-10, numdilationiterations=2):
+    def wmapmaker(eps=1e-10, numdilationiterations=3):
         # Make filter function and batchify
         @pk.image2batchfunc
         def finddilate(img):
             # Find labeled segments and dilate a patch around them.
             segim = img != 0
-            # dilatedim = binary_dilation(segim, iterations=numdilationiterations)
-            dilatedim = segim
+            dilatedim = binary_dilation(segim, iterations=numdilationiterations)
             return dilatedim.astype('float32')
 
         def _func(batches):
@@ -284,7 +283,7 @@ def prepfunctions():
             batchX, batchY = batches[0:2]
             # Find patches of zeros. This can be done by convolving the raw data with a box filter and thresholding at
             # a very small value.
-            batchW = (finddilate(batchX) > eps).astype('float32')
+            batchW = finddilate(batchY)
             return batchX, batchY, batchW
 
         return _func
