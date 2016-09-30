@@ -25,8 +25,44 @@ def run(net, trX, **runconfig):
     else:
         relay = None
 
+    # Build a list of callbacks (start with printer)
+    cbl = [tk.makeprinter(verbosity=5)]
+
+    # Print every few iterations
+    if ffd(runconfig, 'live-print') is not None:
+        # the network output must be available
+        extraoutputs = {'y': net.y}
+
+        def outputprinter(**kwargs):
+            if kwargs['iternum'] % runconfig['live-print']['every'] == 0:
+                # Get input and output
+                ny = kwargs['y']
+                bX = kwargs['funin'][0]
+                bY = kwargs['funin'][1]
+                # Print
+                vz.printensor2file(ny, savedir=runconfig['live-print']['printdir'], mode='image',
+                                   nameprefix='PR-iter-{}-'.format(kwargs['iternum']))
+                vz.printensor2file(bX, savedir=runconfig['live-print']['printdir'], mode='image',
+                                   nameprefix='RW-iter-{}-'.format(kwargs['iternum']))
+                vz.printensor2file(bY, savedir=runconfig['live-print']['printdir'], mode='image',
+                                   nameprefix='GT-iter-{}-'.format(kwargs['iternum']))
+            else:
+                return
+
+        # Append to callback list
+        cbl.append(tk.caller(outputprinter))
+
+    else:
+        extraoutputs = {}
+
+    # Live plots
+    if ffd(runconfig, 'live-plot') is not None:
+        cbl.append(tk.plotter(linenames=runconfig['live-plot']['linenames'], colors=runconfig['live-plot']['colors']))
+    else:
+        pass
+
     # Build callbacks
-    cbs = tk.callbacks([tk.makeprinter(verbosity=5), tk.plotter(linenames=['C', 'L'], colors=['navy', 'firebrick'])])
+    cbs = tk.callbacks(cbl)
 
     # Bind textlogger to printer
     cbs.callbacklist[0].textlogger = log
@@ -38,7 +74,7 @@ def run(net, trX, **runconfig):
 
     # Fit
     res = net.fit(trX=trX, numepochs=40, verbosity=5, backupparams=200, log=log, trainingcallbacks=cbs,
-                  extrarguments=extrarguments, relay=relay)
+                  extrarguments=extrarguments, extraoutputs=extraoutputs, relay=relay)
 
     if ffd(runconfig, 'picklejar') is not None:
         nu.pickle(res, runconfig['picklejar'] + 'fitlog.save')
@@ -78,6 +114,7 @@ if __name__ == '__main__':
     sys.path.append('/export/home/nrahaman/Python/Antipasti')
     import Antipasti.trainkit as tk
     import Antipasti.netutils as nu
+    import Antipasti.vizkit as vz
 
     # Import model
     model = imp.load_source('model', config['modelpath'])
