@@ -52,7 +52,7 @@ def buildpreptrains(prepconfig):
     ptpY = pk.preptrain([pf['time2channel']])
 
     # Build preptrain for the zipped XY feeder (start with weightmap maker)
-    ptpXY = pk.preptrain([pf['wmapmaker']()])
+    ptpXY = pk.preptrain(([pf['wmapmaker']()] if prepconfig['makewmap'] else []))
 
     # Build preptrain for raw data (X)
     ptX = pk.preptrain([pk.normalizebatch()])
