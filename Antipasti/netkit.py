@@ -2931,6 +2931,6 @@ class denoiselayer(layer):
             assert [ishp0 == ishp1 if None not in [ishp0, ishp1] else True
                     for ishp0, ishp1 in zip(inpshape[0], inpshape[1])]
 
-        outshape = inpshape
+        outshape = inpshape[0]
 
         return outshape
