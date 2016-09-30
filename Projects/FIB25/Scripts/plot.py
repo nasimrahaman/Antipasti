@@ -25,7 +25,7 @@ def plot(net, trX, **plotconfig):
     # Loop over and evaluate
     for n, batch in enumerate(batches):
         # Read from batch
-        bX, bY = batch[0:2]
+        bX, bY, bW = batch
 
         print("[+] Evaluating batch {} of {}...".format(n, plotconfig['numbatches']))
         # Evaluate
@@ -34,6 +34,7 @@ def plot(net, trX, **plotconfig):
         vz.printensor2file(bX, savedir=plotconfig['plotdir'], mode='image', nameprefix='RAW{}--'.format(n))
         vz.printensor2file(bY, savedir=plotconfig['plotdir'], mode='image', nameprefix='GT{}--'.format(n))
         vz.printensor2file(ny, savedir=plotconfig['plotdir'], mode='image', nameprefix='PRED{}--'.format(n))
+        vz.printensor2file(bW, savedir=plotconfig['plotdir'], mode='image', nameprefix='WM{}--'.format(n))
 
     # Done
     print("[+] Done.")
