@@ -926,7 +926,7 @@ class feedergate(datafeeder):
                 return
 
     def restartgenerator(self):
-        if hasattr(self.iterator, 'restartgenerator'):
+        if hasattr(self.gen, 'restartgenerator'):
             self.gen.restartgenerator()
         self.iterator = self.batchstream()
 
