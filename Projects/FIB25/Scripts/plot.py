@@ -10,17 +10,40 @@ def fetchfromdict(dictionary, key, default=None):
 
 
 def plot(net, trX, **plotconfig):
-    # Aliases
-    ffd = fetchfromdict
-    # TODO
-    pass
+    print("[+] Plotting results in {}.".format(plotconfig['plotdir']))
 
+    # Get parameter file (first element after a glob) and load parameters
+    parampath = glob.glob(plotconfig['parampath'])[0]
+    print("[+] Loading parameters from {}".format(parampath))
+
+    net.load(parampath)
+
+    print("[+] Fetching from feeder...")
+    # Fetch batches
+    batches = [trX.next() for _ in range(plotconfig['numbatches'])]
+
+    # Loop over and evaluate
+    for n, batch in enumerate(batches):
+        # Read from batch
+        bX, bY = batch[0:2]
+
+        print("[+] Evaluating batch {} of {}...".format(n, plotconfig['numbatches']))
+        # Evaluate
+        ny = net.y.eval({net.x: bX.astype('float32')})
+        # Plot
+        vz.printensor2file(bX, savedir=plotconfig['plotdir'], mode='image', nameprefix='RAW{}--'.format(n))
+        vz.printensor2file(bY, savedir=plotconfig['plotdir'], mode='image', nameprefix='GT{}--'.format(n))
+        vz.printensor2file(ny, savedir=plotconfig['plotdir'], mode='image', nameprefix='PRED{}--'.format(n))
+
+    # Done
+    print("[+] Done.")
 
 if __name__ == '__main__':
     import argparse
     import yaml
     import sys
     import imp
+    import glob
 
     # Parse arguments
     parsey = argparse.ArgumentParser()
@@ -48,6 +71,7 @@ if __name__ == '__main__':
     sys.path.append('/export/home/nrahaman/Python/Antipasti')
     import Antipasti.trainkit as tk
     import Antipasti.netutils as nu
+    import Antipasti.vizkit as vz
 
     # Import model
     model = imp.load_source('model', config['modelpath'])
