@@ -36,6 +36,9 @@ def plot(net, trX, **plotconfig):
         vz.printensor2file(ny, savedir=plotconfig['plotdir'], mode='image', nameprefix='PRED{}--'.format(n))
         vz.printensor2file(bW, savedir=plotconfig['plotdir'], mode='image', nameprefix='WM{}--'.format(n))
 
+        print("[+] Weight map statisitics: min = {}, max = {}, mean = {}, std = {}".format(bW.min(), bW.max(),
+                                                                                           bW.mean(), bW.std()))
+
     # Done
     print("[+] Done.")
 
