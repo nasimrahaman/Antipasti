@@ -121,7 +121,12 @@ def fetchfeeder(dataconf):
     zippedfeeder = ndk.feederzip([rd, gt], preptrain=preptrains['pXY'])
 
     # Gate feeder
-    gate = tools.skipper
+    if dataconf['prepconfig']['makewmap']:
+        # Gate only if a weight map is available
+        gate = tools.skipper
+    else:
+        gate = lambda inp: True
+
     gatepreptrain = pk.preptrain([pk.funczip((preptrains['X'], preptrains['Y'])), preptrains['XYW']])
     feeder = ndk.feedergate(zippedfeeder, gate, preptrain=gatepreptrain)
 
