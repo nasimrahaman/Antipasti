@@ -18,6 +18,7 @@ import pickle as pkl
 import os
 import pykit as pyk
 
+import multiprocessing as mp
 
 # Abstract class for all datafeeders
 class datafeeder(object):
@@ -941,6 +942,82 @@ class feedergate(datafeeder):
     def cleanup(self):
         if hasattr(self.gen, 'cleanup'):
             self.gen.cleanup()
+
+
+# Class ship a feeder to another process.
+class asyncfeeder(datafeeder):
+    def __init__(self, gen, numrestarts=None, maxqsize=0, preptrain=None):
+        """
+        The given feeder `gen` is loaded asynchronously (in another process). This should be a working implementation of
+        a parallel imap.
+
+        :type gen: datafeeder
+        :param gen: Feeder to be async'd.
+
+        :type numrestarts: int
+        :param numrestarts: Number of times gen is to be restarted. The default behaviour is to wait until the
+                            restartgenerator method of this class is called, which might waste a lot of time.
+
+        :type maxqsize: int
+        :param maxqsize: Maximum queue size. Defaults to infinity (= 0).
+
+        :type preptrain: Antipasti.prepkit.preptrain
+        :param preptrain: Train of preprocessing function.
+        """
+
+        # Checks
+        assert hasattr(gen, 'restartgenerator') and hasattr(gen, 'next'), "gen must be an Antipasti datafeeder."
+
+        # Meta
+        self.gen = gen
+        self.preptrain = pk.preptrain([]) if preptrain is None else preptrain
+        self.numrestarts = numrestarts
+
+        # Q to store generator outputs
+        self.q = mp.Queue(maxsize=maxqsize)
+        # Duplex pipe to have comm. between parent and child
+        self.parentcomm, self.childcomm = mp.Pipe(duplex=True)
+        # Store child process handle here
+        self.childprocess = None
+
+    # Method to start the child process
+    def start(self):
+        pass
+
+    @staticmethod
+    def child(gen, q):
+        # Counter to count the number of times gen is restarted. If this exceeds the given number, the child process is
+        # terminated.
+        restartcount = 0
+
+        while True:
+            try:
+                # Fetch from generator and add to queue
+                pass
+                # Poll the comm. pipe to check if the parent has requested termination
+                pass
+                # As a fail-safe, check if the parent process is alive (in case no termination signal was sent).
+                # If not, die.
+                pass
+            except StopIteration:
+                # Put StopIteration in the queue to tell batchstream that an epoch is done.
+                pass
+                # If restartcount is less than numrestarts, restart, increment restart counter and continue.
+                pass
+                # Or if restartcount is larger or equal to numrestart, die.
+                pass
+                # Otherwise, wait for the parent to send a restart or terminate signal.
+                pass
+                # Restart or terminate
+                pass
+        # Clean up gen
+        pass
+
+    def cleanup(self):
+        # Terminate child process
+        pass
+        # Cleanup self.gen, just to be sure
+        pass
 
 
 def mnist(path=None, batchsize=20, xpreptrain=None, ypreptrain=None, dataset="train", **kwargs):
