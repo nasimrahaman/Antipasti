@@ -89,6 +89,9 @@ def load(loadconfig):
     datasets = {'raw': ndu.fromh5(loadconfig['raw-path'], 'data'),
                 'gt': ndu.fromh5(loadconfig['gt-path'], 'data')}
 
+    if ffd(loadconfig, 'transpose'):
+        datasets = {key: dset.transpose(2, 1, 0) for key, dset in datasets.items()}
+
     if ffd(loadconfig, 'pad') is not None:
         datasets = {key: np.lib.pad(dset, tuple(eval(loadconfig['pad'])), 'reflect') for key, dset in datasets.items()}
 
