@@ -863,12 +863,20 @@ class feederweave(datafeeder):
         self.restartgenerator()
 
     def batchstream(self):
+        # Number of generators
+        numgen = len(self.gens)
         while True:
+            # Exhausted generator counter
+            genups = 0
             for gen, preptrain in zip(self.gens, self.preptrains):
                 try:
                     yield ((lambda x: x) if preptrain is None else preptrain)(gen.next())
                 except StopIteration:
-                    return
+                    genups += 1
+                    continue
+            # Break if all generators are exhausted
+            if genups == numgen:
+                return
 
     def restartgenerator(self):
         for gen in self.gens:
