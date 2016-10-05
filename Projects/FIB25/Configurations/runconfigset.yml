@@ -14,3 +14,8 @@ runconfig:
   logfile: null
   picklejar: null
   use-wmaps: true
+
+plotconfig: 
+  parampath: null
+  plotdir: null
+  numbatches: 3
