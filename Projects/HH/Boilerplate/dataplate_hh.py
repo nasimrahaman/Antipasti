@@ -13,7 +13,7 @@ import Antipasti.prepkit as pk
 
 import numpy as np
 
-__doc__ = "Data Logistics for CREMI."
+__doc__ = "Data Logistics for HH."
 
 
 def ffd(dictionary, key, default=None):
@@ -90,7 +90,8 @@ def load(loadconfig):
                 'gt': ndu.fromh5(loadconfig['gt-path'], 'data')}
 
     if ffd(loadconfig, 'transpose'):
-        datasets = {key: dset.transpose(2, 1, 0) for key, dset in datasets.items()}
+        transpose = eval(loadconfig['transpose']) if isinstance(loadconfig['transpose'], str) else (2, 1, 0)
+        datasets = {key: dset.transpose(transpose) for key, dset in datasets.items()}
 
     if ffd(loadconfig, 'pad') is not None:
         datasets = {key: np.lib.pad(dset, tuple(eval(loadconfig['pad'])), 'reflect') for key, dset in datasets.items()}
@@ -98,14 +99,20 @@ def load(loadconfig):
     return datasets
 
 
-def fetchfeeder(dataconf):
+def fetchfeeder(dataconf, givens=None):
+    # Defaults
+    givens = {} if givens is None else givens
+    # Parse dataconf if required
     dataconf = path2dict(dataconf)
 
     # Build preptrain
     preptrains = buildpreptrains(dataconf['prepconfig'])
 
     # Load data to RAM (this is very doable, unlike FIB25)
-    datasets = load(dataconf['loadconfig'])
+    if ffd(givens, 'datasets') is not None:
+        datasets = givens['datasets']
+    else:
+        datasets = load(dataconf['loadconfig'])
 
     # Make feeders (only membranes for now). The feeder structure is as follows:
     # X --- pX ---
@@ -137,7 +144,24 @@ def fetchfeeder(dataconf):
     gatepreptrain = pk.preptrain([pk.funczip((preptrains['X'], preptrains['Y'])), preptrains['XYW']])
     feeder = ndk.feedergate(zippedfeeder, gate, preptrain=gatepreptrain)
 
-    return feeder
+    # Weave feeders if required
+    weave = givens['weave'] if 'weave' in givens.keys() else dataconf['weave'] if 'weave' in dataconf.keys() else False
+
+    if weave:
+        # Check if weavable
+        assert (datasets['raw'].shape[0] == datasets['raw'].shape[1] == datasets['raw'].shape[2]), "Can only weave " \
+                                                                                                   "cubical datasets."
+        # Transpose datasets (201 and 120, assuming this orientation is 012)
+        transposed = [{key: dset.transpose(transpose) for key, dset in datasets.items()}
+                      for transpose in [(1, 2, 0), (2, 0, 1)]]
+        # Get list of transposed feeders
+        transposedfeeders = [feeder] + [fetchfeeder(dataconf, givens={'datasets': dataset, 'weave': False})
+                                        for dataset in transposed]
+        # Weave 'em all together and return
+        weavedfeeder = ndk.feederweave(transposedfeeders)
+        return weavedfeeder
+    else:
+        return feeder
 
 
 def test(dataconf):
@@ -154,6 +178,8 @@ def test(dataconf):
     try:
         print("[+] Fetching datafeeders from file...")
         # Fetch from feeder
+        batches = feeder.next()
+        batches = feeder.next()
         batches = feeder.next()
 
         # Print
