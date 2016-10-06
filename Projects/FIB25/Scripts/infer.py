@@ -130,7 +130,7 @@ class worker(mp.Process):
                 # Make meshgrid
                 x, y = np.meshgrid(np.arange(imshape[1]), np.arange(imshape[0]))
                 # Distort meshgrid indices (invert if required)
-                distinds = (y + invsgn * sdy).reshape(-1, 1), (x + sdx).reshape(-1, 1)
+                distinds = (y + invsgn * sdy).reshape(-1, 1), (x + invsgn * sdx).reshape(-1, 1)
                 # Map cooordinates from image to distorted index set
                 timg = np.array([map_coordinates(im, distinds, mode='reflect', order=1).reshape(imshape) for im in img])
 
