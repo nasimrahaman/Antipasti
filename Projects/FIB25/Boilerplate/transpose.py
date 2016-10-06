@@ -1,7 +1,7 @@
-"""Pad volumes to a given shape."""
+"""Transpose volumes."""
 
 
-def pad(vol, transpose=None):
+def tp(vol, transpose=None):
     transpose = (0, 1, 2) if transpose is None else transpose
     # Pad away
     tvol = vol.transpose(transpose)
@@ -31,5 +31,5 @@ if __name__ == '__main__':
 
     # Load
     vol = load(args.path)
-    pvol = pad(vol, args.transpose)
+    pvol = tp(vol, args.transpose)
     save(pvol, args.path, nameflag=''.join([str(l) for l in args.transpose]))
