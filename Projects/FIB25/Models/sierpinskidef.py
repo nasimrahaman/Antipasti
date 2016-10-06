@@ -84,6 +84,7 @@ t2p = to2prong
 pd = t2pd = lambda layer: to2prong(layer, 'd', iusl)
 pu = t2pu = lambda layer: to2prong(layer, 'u', spl)
 
+
 def to3prong(layer, primary=None, secondary=None):
     if primary is None:
         primary = spl
@@ -94,8 +95,8 @@ def to3prong(layer, primary=None, secondary=None):
 
 t3p = to3prong
 
-# Define Layer Types
 
+# Define Layer Types
 def block(N=50, pos='mid', numinp=3, numout=3, legacy=False):
     # Define layer types
     lA0 = lambda: cl(8 * N, 8 * N, [3, 3])
@@ -144,11 +145,15 @@ def block(N=50, pos='mid', numinp=3, numout=3, legacy=False):
 
     return blk
 
+
 # Terminate a network
-def terminate(numout=3):
+def terminate(numout=3, finalactivation='sigmoid'):
+    # Parse final layer
+    fl = cls if finalactivation == 'sigmoid' else cll
     # Fuse all losses
-    fuse = trks(iusl((8, 8)), iusl((4, 4)), iusl((2, 2)), idl()) + merl(4) + cls(4 * numout, numout, [1, 1])
+    fuse = trks(iusl((8, 8)), iusl((4, 4)), iusl((2, 2)), idl()) + merl(4) + fl(4 * numout, numout, [1, 1])
     return fuse
+
 
 # The old, deprecated way of terminating the network. There because that's how a few networks were
 # trained.
@@ -156,6 +161,7 @@ def legacyterminate(numout=3):
     # Fuse all losses
     fuse = trks(iusl((8, 8)), iusl((4, 4)), iusl((2, 2)), idl()) + merl(4) + cls(12, numout, [1, 1])
     return fuse
+
 
 # Fuse Terminate
 def fuseterminate(numout=3):
@@ -169,6 +175,7 @@ def fuseterminate(numout=3):
 
     return fuse
 
+
 # Initiate a network
 def initiate(preinit=None, numinp=None):
     if preinit is None:
@@ -181,9 +188,10 @@ def initiate(preinit=None, numinp=None):
         raise NotImplementedError
     return start
 
+
 # Build network from multiple blocks
 def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstart=0, numinp=3,
-          numout=3, legacy=False, preinit=None, usewmap=False, savedir=None):
+          numout=3, finalactivation='sigmoid', legacy=False, preinit=None, usewmap=False, savedir=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -210,12 +218,15 @@ def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstar
     if preinit is not None:
         print("[+] Using {} termination.".format(preinit))
 
+    if finalactivation != 'sigmoid':
+        print("[-] Not using default final activation (using {} instead).".format(finalactivation))
+
     net = initiate(preinit, numinp=numinp) + block(N=N, pos='start', numinp=numinp) + \
           reduce(lambda x, y: x + y, [trks(transfer(), transfer(), transfer(), transfer()) +
                                       block(N=N) +
                                       trks(transfer(), transfer(), transfer(), transfer())
                                       for _ in range(depth)]) + \
-          block(N=N, pos='stop', numout=numout, legacy=legacy) + term(numout=numout)
+          block(N=N, pos='stop', numout=numout, legacy=legacy) + term(numout=numout, finalactivation=finalactivation)
 
     net.feedforward()
 
