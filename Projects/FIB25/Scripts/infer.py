@@ -158,10 +158,11 @@ class worker(mp.Process):
                 # transpose
                 augs.append(lambda imag: (imag.transpose(0, 2, 1) if hshdict['transpose'] else imag))
                 # Elastic transform
-                augs.append(lambda imag: _et(imag, dxdy=hshdict['et(dx, dy)'],
-                                             rngseed=hshdict['et(rng)'], invert=False,
-                                             sigma=self.workerconfig['daconfig']['et']['sigma'],
-                                             alpha=self.workerconfig['daconfig']['et']['alpha']))
+                if self.workerconfig['daconfig']['et']['apply']:
+                    augs.append(lambda imag: _et(imag, dxdy=hshdict['et(dx, dy)'],
+                                                 rngseed=hshdict['et(rng)'], invert=False,
+                                                 sigma=self.workerconfig['daconfig']['et']['sigma'],
+                                                 alpha=self.workerconfig['daconfig']['et']['alpha']))
 
                 # Make preptrain
                 return pk.preptrain(augs)
@@ -180,16 +181,17 @@ class worker(mp.Process):
                 deaugs.append(lambda imag: (np.array([np.flipud(im) for im in imag]) if hshdict['flipud'] else imag))
                 # rot90
                 deaugs.append(lambda imag: (np.array([np.rot90(im, 4-hshdict['rot90']) for im in imag])
-                                          if hshdict['flipud'] else imag))
+                                            if hshdict['flipud'] else imag))
                 # flipz
                 deaugs.append(lambda imag: (imag[::-1, ...] if hshdict['flipz'] else imag))
                 # transpose
                 deaugs.append(lambda imag: (imag.transpose(0, 2, 1) if hshdict['transpose'] else imag))
                 # Elastic transform
-                deaugs.append(lambda imag: _et(imag, dxdy=hshdict['et(dx, dy)'],
-                                               rngseed=hshdict['et(rng)'], invert=True,
-                                               sigma=self.workerconfig['daconfig']['et']['sigma'],
-                                               alpha=self.workerconfig['daconfig']['et']['alpha']))
+                if self.workerconfig['daconfig']['et']['apply']:
+                    deaugs.append(lambda imag: _et(imag, dxdy=hshdict['et(dx, dy)'],
+                                                   rngseed=hshdict['et(rng)'], invert=True,
+                                                   sigma=self.workerconfig['daconfig']['et']['sigma'],
+                                                   alpha=self.workerconfig['daconfig']['et']['alpha']))
 
                 # Deaugmentations are to applied in reversed order.
                 deaugs.reverse()
