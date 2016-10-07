@@ -26,6 +26,12 @@ class datafeeder(object):
         pass
 
 
+# Abstract class for all datafeeders
+class datafeeder(object):
+    def cleanup(self):
+        pass
+
+
 # Class to process volumetric data from HDF5
 class cargo(datafeeder):
     def __init__(self, h5path=None, pathh5=None, data=None, axistags=None, batchsize=20, nhoodsize=None, ds=None,
