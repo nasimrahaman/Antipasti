@@ -1,3 +1,4 @@
 [submodule "Projects/CityScapes/Boilerplate/SemanticSegmentation"]
 	path = Projects/CityScapes/Boilerplate/SemanticSegmentation
 	url = https://github.com/danishrathore/SemanticSegmentation.git
+	branch = test
