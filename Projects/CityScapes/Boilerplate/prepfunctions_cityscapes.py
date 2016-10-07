@@ -48,5 +48,13 @@ def prepfunctions():
 
         return _func
 
+    def ds(ratio):
+
+        def _func(batches):
+            out = tuple([batch[:, :, ::ratio[0], ::ratio[1]] for batch in batches])
+            return out
+
+        return _func
+
     return vars()
 

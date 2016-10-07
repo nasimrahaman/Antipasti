@@ -22,7 +22,7 @@ def buildpreptrains(prepconfig):
     # Raw:
     ptX = pk.preptrain([])
 
-    if prepconfig['normalize']:
+    if ffd(prepconfig, 'normalize', False):
         ptX.append(pk.im2double(8))
         ptX.append(pk.normalizebatch())
 
@@ -32,11 +32,14 @@ def buildpreptrains(prepconfig):
     # Mixed
     ptXY = pk.preptrain([pk.funczip((ptX, ptY))])
 
-    if prepconfig['makewmap']:
+    if ffd(prepconfig, 'makewmap', False):
         ptXY.append(pf['wmapmaker'])
 
-    if prepconfig['makepatches']:
+    if ffd(prepconfig, 'makepatches', False):
         ptXY.append(pf['patchmaker'](**prepconfig['patchmaker-config']))
+
+    if ffd(prepconfig, 'ds', False):
+        ptXY.append(pf['ds'](prepconfig['ds']))
 
     # Done
     return {'XY': ptXY}
