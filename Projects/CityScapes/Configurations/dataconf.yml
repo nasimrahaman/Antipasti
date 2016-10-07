@@ -1,0 +1,20 @@
+# Preprocessing
+prepconfig: 
+  normalize: true
+  makewmap: true
+  makepatches: true
+  patchmaker-config:
+    patchsize: [1024, 1024]
+  ds: [2, 2]
+
+# Feeder configuration
+feederconfig: 
+  h5path: null
+  pathh5: 
+    raw: 'img2train'
+    labels: 'label2train'
+  batchsize: 1
+  shuffle: true
+
+# Plot directory
+plotdir: null
