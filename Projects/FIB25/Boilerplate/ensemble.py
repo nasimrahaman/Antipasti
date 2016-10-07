@@ -12,8 +12,8 @@ if __name__ == '__main__':
     import Antipasti.netdatautils as ndu
 
     # ---- PARAMS ----
-    MODE = "TRAIN"
-    SIGMOID = True
+    MODE = "TEST"
+    SIGMOID = False
     # ---- ----- ----
 
     # Load
@@ -29,6 +29,12 @@ if __name__ == '__main__':
         vol201 = vol201[1:-1, 4:-4, 4:-4]
         vol120 = vol120[1:-1, 4:-4, 4:-4]
         vol012 = vol012[1:-1, 4:-4, 4:-4]
+    elif MODE == "TEST":
+        vol201 = vol201[1:-1, 8:-8, 8:-8]
+        vol120 = vol120[1:-1, 8:-8, 8:-8]
+        vol012 = vol012[1:-1, 8:-8, 8:-8]
+    else:
+        raise NotImplementedError
 
     # Transpose
     vol201t = vol201.transpose((1, 2, 0))
