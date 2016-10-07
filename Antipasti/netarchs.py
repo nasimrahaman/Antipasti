@@ -730,7 +730,7 @@ class model(object):
 
                 # Build a dictionary of keyword arguments to send to the monitors
                 iterstat = {"batchnum": batchnum, "params": params, "iternum": numiter, "model": self,
-                            "epoch": epoch}
+                            "epoch": epoch, 'funin': funin}
                 iterstat.update(res)
 
                 # Run all callbacks

@@ -9,6 +9,9 @@ __doc__ = \
                  'coach' in preptrain. coach is only fed 1 argument during feedforward through the train.
     """
 
+import itertools
+
+
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
@@ -70,6 +73,29 @@ def prepdistribute(iterator, preptrain, numworkers, unordered=True):
     imap = workerpool.uimap if unordered else workerpool.imap
     lliterator = imap(preptrain, iterator)
     return lliterator
+
+
+# Function to pool multiple functions to one function. Similar to what a zip would do to an iterator, this function
+# zips functions.
+def funczip(funcs):
+    """
+    Function to pool multiple functions to one function. Similar to what a zip would do to an iterator, this function
+    zips functions.
+
+    :type funcs: list or tuple
+    :param funcs: List of functions to zip.
+
+    :return: Zipped function.
+    """
+
+    def _zipped(batches):
+        # Batches might not necessarily be iterable as a list (though they could be ndarrays)
+        batches = pyk.obj2list(batches, ndarray2list=False)
+        # Trim funcs to the right len
+        tfuncs = funcs[0:len(batches)]
+        return tuple([func(batch) for func, batch in itertools.izip_longest(tfuncs, batches, fillvalue=lambda x: x)])
+
+    return _zipped
 
 
 # Convenience functions
