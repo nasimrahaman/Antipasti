@@ -3,6 +3,8 @@ import sys
 import os
 sys.path.append(os.path.abspath('{}/../'.format(__file__)))
 
+import numpy as np
+
 from tools import csfeeder, path2dict, ffd
 import prepfunctions_cityscapes
 
@@ -20,20 +22,16 @@ def buildpreptrains(prepconfig):
     pf = prepfunctions_cityscapes.prepfunctions()
 
     # Raw:
-    ptX = pk.preptrain([])
-
-    if ffd(prepconfig, 'normalize', False):
-        ptX.append(pk.im2double(8))
-        ptX.append(pk.normalizebatch())
+    ptX = pk.preptrain([pk.cast()])
 
     # Labels:
-    ptY = pk.preptrain([pk.cast()])
+    ptY = pk.preptrain([pk.cast(), lambda batch: np.moveaxis(batch, 3, 1)])
 
     # Mixed
     ptXY = pk.preptrain([pk.funczip((ptX, ptY))])
 
     if ffd(prepconfig, 'makewmap', False):
-        ptXY.append(pf['wmapmaker'])
+        ptXY.append(pf['wmapmaker']())
 
     if ffd(prepconfig, 'patchmaker', False):
         ptXY.append(pf['patchmaker'](**prepconfig['patchmaker']))
@@ -43,6 +41,11 @@ def buildpreptrains(prepconfig):
 
     if ffd(prepconfig, 'patchds', False):
         ptXY.append(pf['patchds'](**prepconfig['patchds']))
+
+    if ffd(prepconfig, 'normalize', False):
+        ptXY.append(pk.funczip((pk.cast(),)))
+        ptXY.append(pk.funczip((pk.im2double(8),)))
+        ptXY.append(pk.funczip((pk.normalizebatch(),)))
 
     # Done
     return {'XY': ptXY}
@@ -94,7 +97,9 @@ if __name__ == '__main__':
     import argparse
     parsey = argparse.ArgumentParser()
     parsey.add_argument("dataconf", help="Data Configuration file.")
-    args = parsey.parse_args()
+    # args = parsey.parse_args()
+    args = argparse.Namespace(dataconf='/mnt/localdata02/nrahaman/Neuro/ConvNet-Backups/CityScapes/'
+                                       'SIERPINSKI-0/Configurations/dataconf.yml')
 
     # Test
     test(args.dataconf)

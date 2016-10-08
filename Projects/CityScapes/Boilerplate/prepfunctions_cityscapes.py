@@ -3,7 +3,7 @@
 import random
 
 import numpy as np
-from scipy.misc import imresize
+from skimage.transform import resize
 
 
 def prepfunctions():
@@ -13,8 +13,8 @@ def prepfunctions():
         def _func(batches):
             rawbatch, labelbatch = batches
             # Make wmap from labelbatch
-            newlabelbatch = labelbatch[:, 1:, ...]
-            wmap = labelbatch[:, 0:1, ...]
+            newlabelbatch = labelbatch[:, 0:-1, ...]
+            wmap = labelbatch[:, -1:, ...]
             return rawbatch, newlabelbatch, wmap
 
         return _func
@@ -89,10 +89,11 @@ def prepfunctions():
             sls = [samplepatch(patchsize, nrowsrc, ncolsrc) for patchsize in patchsizes]
 
             # Make resize function on channel
-            resize = lambda chim: np.array([imresize(im, size=outimshape) for im in chim])
+            _resize = lambda chim: np.array([resize(im, output_shape=outimshape, preserve_range=True, order=0)
+                                             for im in chim])
 
             # Process and return
-            return tuple([np.array([resize(chim[(slice(0, None),) + sl]) for chim, sl in zip(batch, sls)])
+            return tuple([np.array([_resize(chim[(slice(0, None),) + sl]) for chim, sl in zip(batch, sls)])
                           for batch in batches])
 
         # Done

@@ -37,18 +37,20 @@ class csfeeder(ndk.datafeeder):
         # Meta
         self.feederconfig = path2dict(feederconfig)
 
+        # Data info
+        self.numsamples = None
+
         # Open files and datasets
         self.openfile = None
         self.h5dsets = None
-
-        # Data info
-        self.numsamples = None
+        self.open()
 
         # Preptrain
         self.preptrain = pk.preptrain([]) if preptrain is None else preptrain
 
         # Iterator
         self.iterator = None
+        self.restartgenerator()
 
     def open(self):
         """Open H5 file and read datasets."""
@@ -60,9 +62,6 @@ class csfeeder(ndk.datafeeder):
         self.numsamples = self.h5dsets['raw'].shape[0]
 
     def batchstream(self):
-        # Open file if it's not open already
-        if self.openfile is None:
-            self.open()
 
         # Get batch slices
         batchslices = [slice(i, i + self.feederconfig['batchsize'])
