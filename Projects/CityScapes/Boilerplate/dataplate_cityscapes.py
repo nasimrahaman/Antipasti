@@ -35,11 +35,14 @@ def buildpreptrains(prepconfig):
     if ffd(prepconfig, 'makewmap', False):
         ptXY.append(pf['wmapmaker'])
 
-    if ffd(prepconfig, 'makepatches', False):
-        ptXY.append(pf['patchmaker'](**prepconfig['patchmaker-config']))
+    if ffd(prepconfig, 'patchmaker', False):
+        ptXY.append(pf['patchmaker'](**prepconfig['patchmaker']))
 
     if ffd(prepconfig, 'ds', False):
-        ptXY.append(pf['ds'](prepconfig['ds']))
+        ptXY.append(pf['ds'](**prepconfig['ds']))
+
+    if ffd(prepconfig, 'patchds', False):
+        ptXY.append(pf['patchds'](**prepconfig['patchds']))
 
     # Done
     return {'XY': ptXY}
