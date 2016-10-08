@@ -54,11 +54,12 @@ def fetchfeeder(dataconf):
     # Get preptrains
     preptrains = buildpreptrains(dataconf['prepconfig'])
 
-    # Make feeder
-    feeder = csfeeder(feederconfig=dataconf['feederconfig'], preptrain=preptrains['XY'])
+    # Make feeders (train and validate)
+    trfeeder = csfeeder(feederconfig=dataconf['feederconfig']['training'], preptrain=preptrains['XY'])
+    vafeeder = csfeeder(feederconfig=dataconf['feederconfig']['validation'], preptrain=preptrains['XY'])
 
     # Done!
-    return feeder
+    return {'training': trfeeder, 'validation': vafeeder}
 
 
 def test(dataconf):
@@ -70,7 +71,7 @@ def test(dataconf):
 
     print("[+] Building datafeeders...")
     # Make feeder
-    feeder = fetchfeeder(dataconf)
+    feeder = fetchfeeder(dataconf)['training']
 
     try:
         print("[+] Fetching datafeeders from file...")
