@@ -2,19 +2,29 @@
 prepconfig: 
   normalize: true
   makewmap: true
-  makepatches: true
-  patchmaker-config:
-    patchsize: [1024, 1024]
-  ds: [2, 2]
+  patchmaker: false
+  ds: false
+  patchds: 
+    outimshape: [512, 512]
+    minpatchsize: 512
+    maxpatchsize: 1024
 
 # Feeder configuration
 feederconfig: 
-  h5path: null
-  pathh5: 
-    raw: 'img2train'
-    labels: 'label2train'
-  batchsize: 1
-  shuffle: true
+  training:
+    h5path: null
+    pathh5: 
+      raw: 'img2train'
+      labels: 'label2train'
+    batchsize: 1
+    shuffle: true
+  validation:
+    h5path: null
+    pathh5: 
+      raw: 'img2val'
+      labels: 'label2val'
+    batchsize: 1
+    shuffle: true
 
 # Plot directory
 plotdir: null
