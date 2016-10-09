@@ -15,20 +15,28 @@ def run(net, trX, **runconfig):
     # Configure logfile
     if ffd(runconfig, 'logfile') is not None:
         log = tk.logger(runconfig['logfile'])
+        print("[+] Logging to {}.".format(runconfig['logfile']))
     else:
         log = None
+        print("[-] Not logging.")
 
     # Configure relay
     if ffd(runconfig, 'relayfile') is not None:
         relay = tk.relay({'learningrate': net.baggage['learningrate']}, runconfig['relayfile'])
+        print("[+] Listening to control file at {}.".format(runconfig['relayfile']))
     else:
         relay = None
+        print("[-] Not listening to relays.")
 
     # Build a list of callbacks (start with printer)
     cbl = [tk.makeprinter(verbosity=5)]
 
     # Print every few iterations
     if ffd(runconfig, 'live-print') is not None:
+
+        print("[+] Network outputs will be printed "
+              "to {} every {} iteratons.".format(runconfig['live-print']['printdir'], runconfig['live-print']['every']))
+
         # the network output must be available
         extraoutputs = {'y': net.y}
 
@@ -56,6 +64,7 @@ def run(net, trX, **runconfig):
 
     # Live plots
     if ffd(runconfig, 'live-plot') is not None:
+        print("[+] Live-plots are on. Make sure a bokeh-server is running.")
         cbl.append(tk.plotter(linenames=runconfig['live-plot']['linenames'], colors=runconfig['live-plot']['colors']))
     else:
         pass
@@ -82,7 +91,7 @@ def run(net, trX, **runconfig):
                       trainingcallbacks=cbs, extrarguments=extrarguments, extraoutputs=extraoutputs, relay=relay)
 
     if ffd(runconfig, 'picklejar') is not None:
-        nu.pickle(res, runconfig['picklejar'] + 'fitlog.save')
+        nu.pickle(res, os.path.join(runconfig['picklejar'], 'fitlog.save'))
 
     return net
 
@@ -92,6 +101,7 @@ if __name__ == '__main__':
     import yaml
     import sys
     import imp
+    import os
 
     # Parse arguments
     parsey = argparse.ArgumentParser()
