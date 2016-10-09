@@ -6,6 +6,8 @@ import Antipasti.netkit as nk
 import Antipasti.netarchs as na
 import Antipasti.archkit as ak
 import Antipasti.netools as ntl
+import Antipasti.netrain as nt
+
 
 # Define shortcuts
 # Convlayer with ELU
@@ -146,11 +148,21 @@ def block(N=50, pos='mid', numinp=3, numout=3, legacy=False):
 
 
 # Terminate a network
-def terminate(numout=3, finalactivation='sigmoid'):
+def terminate(numout=3, finalactivation='softmax'):
+
     # Parse final layer
-    fl = cls if finalactivation == 'sigmoid' else cll
+    if finalactivation == 'softmax' or finalactivation is None:
+        fl = cll(4 * numout, numout, [1, 1]) + sml()
+    elif finalactivation == 'linear':
+        fl = cll(4 * numout, numout, [1, 1])
+    elif finalactivation == 'sigmoid':
+        fl = cls(4 * numout, numout, [1, 1])
+    else:
+        raise NotImplementedError
+
     # Fuse all losses
-    fuse = trks(iusl((8, 8)), iusl((4, 4)), iusl((2, 2)), idl()) + merl(4) + fl(4 * numout, numout, [1, 1])
+    fuse = trks(iusl((8, 8)), iusl((4, 4)), iusl((2, 2)), idl()) + merl(4) + fl
+
     return fuse
 
 
@@ -177,6 +189,7 @@ def fuseterminate(numout=3):
 
 # Initiate a network
 def initiate(preinit=None, numinp=None):
+
     if preinit is None:
         # Unpool and distribute
         start = repl(4) + trks(smpl((8, 8)), smpl((4, 4)), smpl((2, 2)), idl())
@@ -185,17 +198,18 @@ def initiate(preinit=None, numinp=None):
         start = bn(numinp=numinp) + repl(4) + trks(smpl((8, 8)), smpl((4, 4)), smpl((2, 2)), idl())
     else:
         raise NotImplementedError
+
     return start
 
 
 # Build network from multiple blocks
-def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstart=0, numinp=3,
-          numout=3, finalactivation='sigmoid', legacy=False, preinit=None, usewmap=True, savedir=None):
+def build(N=30, depth=5, transfer=None, parampath=None, numinp=3,
+          numout=3, finalactivation='softmax', usewmap=True, savedir=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
     if transfer is not None:
-        print("[+] Using transfer protocol: {}.".format(transfer))
+        print("[+] Using transfer layer: {}.".format(transfer))
 
     if transfer == 'dropout':
         transfer = drl
@@ -204,33 +218,33 @@ def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstar
     else:
         transfer = idl
 
-    if fuseterm:
-        term = fuseterminate
-        print("[+] Using fusion termination.")
-    elif legacy:
-        term = legacyterminate
-        print("[-] Using legacy termination.")
-    else:
-        term = terminate
-        print("[+] Using vanilla termination.")
+    term = terminate
 
-    if preinit is not None:
-        print("[+] Using {} termination.".format(preinit))
+    print("[+] Activation of the final layer is set to: {}.".format(finalactivation))
 
-    if finalactivation != 'sigmoid':
-        print("[-] Not using default final activation (using {} instead).".format(finalactivation))
-
-    net = initiate(preinit, numinp=numinp) + block(N=N, pos='start', numinp=numinp) + \
+    net = initiate(numinp=numinp) + block(N=N, pos='start', numinp=numinp) + \
           reduce(lambda x, y: x + y, [trks(transfer(), transfer(), transfer(), transfer()) +
                                       block(N=N) +
                                       trks(transfer(), transfer(), transfer(), transfer())
                                       for _ in range(depth)]) + \
-          block(N=N, pos='stop', numout=numout, legacy=legacy) + term(numout=numout, finalactivation=finalactivation)
+          block(N=N, pos='stop', numout=numout) + term(numout=numout, finalactivation=finalactivation)
 
     net.feedforward()
 
+    net = prep(net, parampath=parampath, usewmap=usewmap, savedir=savedir)
+
+    return net
+
+
+# Prepare network
+def prep(net, parampath=None, usewmap=True, savedir=None):
+
+    # Load params if required to
     if parampath is not None:
         net.load(parampath)
+        print("[+] Loaded parameters from {}.".format(parampath))
+    else:
+        print("[-] Not loading parameters.")
 
     net.baggage["learningrate"] = th.shared(value=np.float32(0.0002))
 
@@ -243,8 +257,25 @@ def build(N=50, depth=2, transfer=None, fuseterm=False, parampath=None, iterstar
 
     net.getupdates(method='momsgd', learningrate=net.baggage["learningrate"], nesterov=True)
 
+    # Compute errors
+    net = error(net)
+
+    # Assign Save directory.
     if savedir is not None:
         net.savedir = savedir
 
+    return net
+
+
+# Compute theano error
+def error(net):
+    ist = net.y
+    soll = net.yt
+    # This flattens ist and soll to a matrix of shape (bs * nrow * ncol, nc)
+    ist, soll = nt.prep(ist=ist, soll=soll)
+    # Compute error
+    E = T.neq(T.argmax(ist), T.argmax(soll)).mean()
+    # Write to net
+    net.E = E
     return net
 
