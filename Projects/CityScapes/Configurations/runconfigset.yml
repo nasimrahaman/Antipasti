@@ -1,0 +1,29 @@
+device: 'gpu'
+
+# Data logistics
+dplpath: null
+dataconf: null
+
+# Model configuration
+modelpath: null
+buildconfig:
+  N: 30
+  depth: 5
+  usewmap: true
+  savedir: null
+
+# Training configuration
+runconfig:
+  logfile: null
+  relayfile: null
+  live-print:
+    every: 10
+    printdir: null
+  live-plot:
+    linenames:
+      - E
+    colors:
+      - 'navy'
+  use-wmaps: true
+  picklejar: null
+
