@@ -70,7 +70,10 @@ def run(net, trX, **runconfig):
         pass
 
     # Build callbacks
+    # Training
     cbs = tk.callbacks(cbl)
+    # Validation
+    vcbs = tk.printer(monitors=[tk.vaEmonitor], textlogger=log)
 
     # Bind textlogger to printer
     cbs.callbacklist[0].textlogger = log
@@ -85,7 +88,7 @@ def run(net, trX, **runconfig):
         trX_, vaX_ = trX['training'], trX['validation']
         res = net.fit(trX=trX_, numepochs=40, verbosity=5, backupparams=ffd(runconfig, 'backup-every', 200), log=log,
                       trainingcallbacks=cbs, extrarguments=extrarguments, extraoutputs=extraoutputs, relay=relay,
-                      vaX=vaX_, validateevery=ffd(runconfig, 'validate-every', 200))
+                      vaX=vaX_, validateevery=ffd(runconfig, 'validate-every', 200), validationcallbacks=vcbs)
     else:
         res = net.fit(trX=trX, numepochs=40, verbosity=5, backupparams=ffd(runconfig, 'backup-every', 200), log=log,
                       trainingcallbacks=cbs, extrarguments=extrarguments, extraoutputs=extraoutputs, relay=relay)

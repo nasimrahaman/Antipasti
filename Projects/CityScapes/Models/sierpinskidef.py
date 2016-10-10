@@ -204,7 +204,7 @@ def initiate(preinit=None, numinp=None):
 
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3,
-          numout=3, finalactivation='softmax', usewmap=True, savedir=None):
+          numout=3, finalactivation='softmax', optimizer='momsgd', usewmap=True, savedir=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -231,13 +231,13 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3,
 
     net.feedforward()
 
-    net = prep(net, parampath=parampath, usewmap=usewmap, savedir=savedir)
+    net = prep(net, parampath=parampath, usewmap=usewmap, savedir=savedir, optimizer=optimizer)
 
     return net
 
 
 # Prepare network
-def prep(net, parampath=None, usewmap=True, savedir=None):
+def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None):
 
     # Load params if required to
     if parampath is not None:
@@ -255,7 +255,10 @@ def prep(net, parampath=None, usewmap=True, savedir=None):
     else:
         net.cost(method='cce', regterms=[(2, 0.0005)])
 
-    net.getupdates(method='momsgd', learningrate=net.baggage["learningrate"], nesterov=True)
+    if optimizer == 'momsgd':
+        net.getupdates(method=optimizer, learningrate=net.baggage["learningrate"], nesterov=True)
+    elif optimizer == 'adam':
+        net.getupdates(method=optimizer, learningrate=net.baggage["learningrate"])
 
     # Compute errors
     net = error(net)
