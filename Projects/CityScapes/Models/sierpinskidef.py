@@ -248,13 +248,14 @@ def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None):
         print("[-] Not loading parameters.")
 
     net.baggage["learningrate"] = th.shared(value=np.float32(0.0002))
+    net.baggage["l2"] = th.shared(value=np.float32(0.00001))
 
     # Set up weight maps if required
     if usewmap:
         net.baggage["wmap"] = T.tensor4()
-        net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, 0.0005)])
+        net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, net.baggage["l2"])])
     else:
-        net.cost(method='cce', regterms=[(2, 0.0005)])
+        net.cost(method='cce', regterms=[(2, net.baggage["l2"])])
 
     if optimizer == 'momsgd':
         net.getupdates(method=optimizer, learningrate=net.baggage["learningrate"], nesterov=True)
