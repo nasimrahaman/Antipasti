@@ -20,6 +20,8 @@ import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.interpolation import map_coordinates
 
+import h5py as h5
+
 # Imports without theano dependency
 sys.path.append('/export/home/nrahaman/Python/Antipasti')
 import Antipasti.prepkit as pk
@@ -501,11 +503,15 @@ class supervisor(object):
         """Load datasets to RAM"""
         from Antipasti.netdatautils import fromh5
 
-        # Load from H5
-        datasets = {dset: fromh5(self.superconfig['datapaths'][dset], self.superconfig['h5paths'][dset])
-                    for dset in self.superconfig['datapaths'].keys()}
+        # Load from H5 if required
+        if 'datasets' not in self.superconfig.keys():
+            datasets = {dset: fromh5(self.superconfig['datapaths'][dset], self.superconfig['h5paths'][dset])
+                        for dset in self.superconfig['datapaths'].keys()}
 
-        self.print_("[+] Loaded volumes from HDF5.")
+            self.print_("[+] Loaded volumes from HDF5.")
+        else:
+            datasets = self.superconfig['datasets']
+            self.print_("[+] Using preloaded dataset.")
 
         # Pad datasets if required
         if pad:
@@ -737,6 +743,24 @@ class logger(object):
     def close(self):
         return
 
+
+def autoqueue(supervisorconfig):
+    if 'mode' not in supervisorconfig.keys():
+        supervisorconfig['mode'] = 'single'
+
+    if supervisorconfig['mode'] == 'batch':
+        # Open H5 file
+        rawdatafile = h5.File(supervisorconfig['datapath'])
+        # TODO
+        rawdatafile.close()
+
+    elif supervisorconfig['mode'] == 'single':
+        # Set up supervisor
+        sprvsr = supervisor(supervisorconfig)
+        # Run supervisor
+        sprvsr.run()
+
+
 if __name__ == '__main__':
     parsey = argparse.ArgumentParser()
     parsey.add_argument('inferconfigset', help="Inference configuration.")
@@ -745,7 +769,6 @@ if __name__ == '__main__':
 
     # Read worker config
     with open(inferconfig) as f: superconfig = yaml.load(f)
-    # Set up supervisor
-    sprvsr = supervisor(superconfig)
-    # Run supervisor
-    sprvsr.run()
+
+    # Queue as required
+    autoqueue(superconfig)
