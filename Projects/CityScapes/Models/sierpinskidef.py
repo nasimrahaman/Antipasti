@@ -222,12 +222,13 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3,
 
     print("[+] Activation of the final layer is set to: {}.".format(finalactivation))
 
-    net = initiate(numinp=numinp) + block(N=N, pos='start', numinp=numinp) + \
-          reduce(lambda x, y: x + y, [trks(transfer(), transfer(), transfer(), transfer()) +
-                                      block(N=N) +
+    net = initiate(numinp=numinp) + \
+          block(N=N, pos='start', numinp=numinp) + trks(transfer(), transfer(), transfer(), transfer()) + \
+          reduce(lambda x, y: x + y, [block(N=N) +
                                       trks(transfer(), transfer(), transfer(), transfer())
                                       for _ in range(depth)]) + \
-          block(N=N, pos='stop', numout=numout) + term(numout=numout, finalactivation=finalactivation)
+          block(N=N, pos='stop', numout=numout) + \
+          term(numout=numout, finalactivation=finalactivation)
 
     net.feedforward()
 
