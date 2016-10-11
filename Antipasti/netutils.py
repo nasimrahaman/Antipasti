@@ -439,6 +439,12 @@ def gradientcheck(cost, param, variables):
     # TODO
     pass
 
+
+# Function to make x and y of a given layer
+def makelayerxy(inpdim, outdim):
+    pass
+
+
 # Function to cross-parse data dimensionality, inpshape, input dimensionality, and 'issequence'. Raises an error if
 # something can't be parsed. Returns a dictionary of parsed items.
 def parselayerinfo(dim=None, inpdim=None, issequence=None, allowsequences=None, numinp=None, inpshape=None,

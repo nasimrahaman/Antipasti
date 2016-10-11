@@ -722,7 +722,7 @@ class activationlayer(layer):
 
 class functionlayer(layer):
     def __init__(self, func, shapefunc=None, funcargs=None, funckwargs=None, shapefuncargs=None, shapefunckwargs=None,
-                 numinp=1, numout=1, dim=None, issequence=None, inpshape=None):
+                 numinp=1, dim=None, issequence=None, inpshape=None):
         """
         Layer to apply any given function to input(s). The function may require multiple inputs and
         return multiple outputs. The function may change the shape of the tensor, but then a `shapefunc`
@@ -784,7 +784,6 @@ class functionlayer(layer):
 
         # Structure inference
         self.numinp = parsey['numinp']
-        self.numout = numout
 
         # Shape inference
         self.inpshape = parsey['inpshape']
@@ -824,20 +823,43 @@ class functionlayer(layer):
 
 class lasagnelayer(layer):
     """Class to wrap Theano graphs built with Lasagne."""
-    def __init__(self, outputlayers, numinp=1, inpshape=None):
+    def __init__(self, inputlayers, outputlayers, inpshape=None):
+        """
+        :type inputlayers: list
+        :param inputlayers: List of Lasagne input layers.
+
+        :type outputlayers: list
+        :param outputlayers: List of output layers.
+
+        :type inpshape: list
+        :param inpshape: Input shapes.
+        """
         # Init superclass
         super(lasagnelayer, self).__init__()
         # Make sure lasagne is available
         assert las is not None, "Lasagne could not be imported."
 
+        # Meta
+        self.inputlayers = inputlayers
+        self.outputlayers = outputlayers
+
         # Parse layer info
-        parsey = netutils.parselayerinfo(dim=2, allowsequences=True, numinp=numinp, issequence=False,
-                                         inpshape=inpshape)
+        parsey = netutils.parselayerinfo(dim=2, allowsequences=True, numinp=len(inputlayers),
+                                         issequence=False, inpshape=inpshape)
 
         self.dim = parsey['dim']
         self.inpdim = parsey['inpdim']
         self.allowsequences = parsey['allowsequences']
         self.issequence = parsey['issequence']
+        self.numinp = parsey['numinp']
+
+        # Shape inference
+        self.inpshape = parsey['inpshape']
+
+        # Check numout for consistency
+        assert self.numout == len(self.outputlayers), "Number of outputs doesn't match " \
+                                                      "the given number of output-layers"
+
 
         pass
     pass
