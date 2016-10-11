@@ -441,8 +441,12 @@ def gradientcheck(cost, param, variables):
 
 
 # Function to make x and y of a given layer
-def makelayerxy(inpdim, outdim):
-    pass
+def makelayerxy(inpdim, outdim, layerid):
+    x = pyk.delist([T.tensor('floatX', [False, ] * indim, name='x{}:'.format(inpnum) + str(layerid))
+                    for inpnum, indim in enumerate(pyk.obj2list(inpdim))])
+    y = pyk.delist([T.tensor('floatX', [False, ] * oudim, name='y{}:'.format(outnum) + str(layerid))
+                    for outnum, oudim in enumerate(pyk.obj2list(outdim))])
+    return x, y
 
 
 # Function to cross-parse data dimensionality, inpshape, input dimensionality, and 'issequence'. Raises an error if

@@ -789,11 +789,7 @@ class functionlayer(layer):
         self.inpshape = parsey['inpshape']
 
         # Containers for X and Y
-        self.x = pyk.delist([T.tensor('floatX', [False, ] * indim, name='x{}:'.format(inpnum) + str(id(self)))
-                             for inpnum, indim in enumerate(pyk.obj2list(self.inpdim))])
-        self.y = pyk.delist([T.tensor('floatX', [False, ] * oudim, name='x{}:'.format(outnum) + str(id(self)))
-                             for outnum, oudim in enumerate(pyk.obj2list(self.outdim))])
-
+        self.x, self.y = netutils.makelayerxy(self.inpdim, self.outdim, id(self))
 
     def feedforward(self, inp=None):
         if inp is None:
@@ -860,6 +856,14 @@ class lasagnelayer(layer):
         assert self.numout == len(self.outputlayers), "Number of outputs doesn't match " \
                                                       "the given number of output-layers"
 
+        self.x, self.y = netutils.makelayerxy(self.inpdim, self.outdim, id(self))
 
+    def inferoutshape(self, inpshape=None, checkinput=False):
+        if inpshape is None:
+            inpshape = self.inpshape
+
+        # TODO
+        # outshape = las.layers.get_output_shape(self.outputlayers, self.inpshape)
         pass
+
     pass
