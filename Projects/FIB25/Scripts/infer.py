@@ -538,8 +538,22 @@ class supervisor(object):
         if normalize:
 
             def normalizevolume(vol):
-                vol = vol/255.
-                vol = (vol - vol.mean())/vol.std()
+                # Normalize
+                vol = vol / 255.
+
+                if 'dataset-mean' in self.superconfig.keys():
+                    mean = self.superconfig['dataset-mean']
+                else:
+                    mean = vol.mean()
+
+                if 'dataset-std' in self.superconfig.keys():
+                    std = self.superconfig['dataset-std']
+                else:
+                    std = vol.std()
+
+                # Normalize to zero mean and unit variance
+                vol = (vol - mean)/std
+
                 return vol
 
             self.print_("[+] Normalizing volumes...")
@@ -780,12 +794,23 @@ def ensemble(vols):
     return avgvol
 
 
+# Delete files in writepath
+def clean(writepaths):
+    for filename in writepaths.values():
+        os.remove(filename)
+
+
 def autoqueue(supervisorconfig):
     # netdatautils does not depend on theano, so it's safe to import
     import Antipasti.netdatautils as ndu
 
+    # Configure logger
+    log = logger(supervisorconfig['logfile'])
+
     def print_(msg):
-        print("Hypervisor: {}".format(msg))
+        pmsg = "Hypervisor: {}".format(msg)
+        print(pmsg)
+        log(pmsg)
 
     if 'mode' not in supervisorconfig.keys():
         supervisorconfig['mode'] = 'single'
@@ -844,6 +869,9 @@ def autoqueue(supervisorconfig):
             writepath = os.path.join(supervisorconfig['writedir'], 'block-{}-avgsig.h5'.format(bbid))
             print_("[+] Writing final volume as float32 to file: {}...".format(writepath))
             ndu.toh5(avgvol.astype('float32'), writepath)
+
+            # Clean up
+            clean(writepaths)
 
         rawdatafile.close()
 
