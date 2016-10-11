@@ -871,6 +871,7 @@ def autoqueue(supervisorconfig):
             ndu.toh5(avgvol.astype('float32'), writepath)
 
             # Clean up
+            print_("Deleting transposed volumes...")
             clean(writepaths)
 
         rawdatafile.close()
