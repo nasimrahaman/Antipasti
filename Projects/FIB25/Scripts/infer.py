@@ -15,12 +15,12 @@ from random import choice, shuffle
 from argparse import Namespace
 from itertools import product
 
-
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.interpolation import map_coordinates
 
 import h5py as h5
+import simplejson as json
 
 # Imports without theano dependency
 sys.path.append('/export/home/nrahaman/Python/Antipasti')
@@ -312,6 +312,9 @@ class worker(mp.Process):
                     jobs.append(self.jobq.get(block=False))
                 except q.Empty:
                     poisonpill = True
+                    # Set up suicide pact
+                    self.resultq.put(None)
+                    self.resultq.close()
                     break
 
             self.print_("[+] Fetched {} jobs from JobQ. Fetching corresponding tensor and augmenting...".format(len(jobs)))
@@ -458,6 +461,14 @@ class supervisor(object):
         # Write out
         return {'padded_volume': pvolume, 'padconfig': (Zpad, Ypad, Xpad), 'volshape': pvolume.shape}
 
+    def unpad(self, pvolume, padconfig):
+        # Get padding
+        Zpad, Ypad, Xpad = padconfig
+        # Crop volume
+        volume = pvolume[Zpad:-Zpad, Ypad:-Ypad, Xpad:-Xpad]
+        # Return
+        return volume
+
     def getslicelist(self, volshape, padconfig):
         """
         Given the shape of a volume `volshape` and how it was padded `padconfig`, generate a list of slice tuples.
@@ -594,7 +605,6 @@ class supervisor(object):
                                 [('device', device), ('datasets', self.datasets)] + wait)
             workerconfigs.append(workerconfig)
 
-
         self.workerconfigs = workerconfigs
 
     def prepwriter(self):
@@ -616,14 +626,22 @@ class supervisor(object):
 
     def finish(self):
         from Antipasti.netdatautils import toh5
+
         # Normalize volumes
         for dset, outvol in self.baggage['outvols'].items():
             # Get normalization volume
             normvol = self.baggage['normvols'][dset]
             # Get rid of zeros in normvol
             normvol[normvol == 0.] = 1.
+
             # Average
             writevol = outvol/normvol
+
+            # Unpad if required
+            if 'padconfig' in self.baggage.keys():
+                self.print_("Unpadding volume (dataset {}) with padconfig {}.".format(dset, self.baggage['padconfig']))
+                writevol = self.unpad(pvolume=writevol, padconfig=self.baggage['padconfig'][dset])
+
             # Write to file
             toh5(writevol, self.superconfig['writepaths'][dset])
             self.print_("[+] Wrote dataset {} to {}.".format(dset, self.superconfig['writepaths'][dset]))
@@ -694,7 +712,7 @@ class supervisor(object):
             wrkr.join()
 
         self.print_("[+] Done.")
-        raise SystemError
+        return
 
     def _cremi_resultpreprocessor(self, result):
         # Get halfwindow
@@ -744,14 +762,77 @@ class logger(object):
         return
 
 
+def parsejson(path):
+    with open(path) as jsonfile:
+        arr = np.array(json.load(jsonfile))
+    return arr
+
+
 def autoqueue(supervisorconfig):
+    # netdatautils does not depend on theano, so it's safe to import
+    import Antipasti.netdatautils as ndu
+
+    def print_(msg):
+        print("Hypervisor: {}".format(msg))
+
     if 'mode' not in supervisorconfig.keys():
         supervisorconfig['mode'] = 'single'
 
     if supervisorconfig['mode'] == 'batch':
+        print_("[+] Preparing to process in batch mode...")
+
         # Open H5 file
         rawdatafile = h5.File(supervisorconfig['datapath'])
-        # TODO
+        # Read dataset 'data' (but don't load to RAM)
+        dataset = rawdatafile['data']
+
+        # Read bounding box coordinates
+        bboxes = parsejson(supervisorconfig['subvol-bboxes'])
+
+        print_("[+] Ready.")
+
+        # Loop over bounding boxes
+        for bbid, bbox in enumerate(bboxes):
+            print_("[+] Processing box: {}.".format(bbid))
+            # Set up config for the supervisor
+            # Load subvol to RAM
+            start, stop = bbox[0:2]
+            subvol_t012 = np.asarray(dataset[start[0]:stop[0], start[1]:stop[1], start[2]:stop[2]])
+
+            # Transpose 3 ways
+            subvol_t120 = subvol_t012.transpose(1, 2, 0)
+            subvol_t201 = subvol_t012.transpose(2, 0, 1)
+
+            print_("[+] Loaded and transposed volumes.")
+
+            # Write to config
+            supervisorconfig['datasets'] = {'t012': subvol_t012, 't120': subvol_t120, 't201': subvol_t201}
+
+            # Set writepaths and write to config
+            supervisorconfig['writepaths'] = writepaths = \
+                {'t012': os.path.join(supervisorconfig['writedir'], 'block-{}-t012.h5'.format(bbid)),
+                 't120': os.path.join(supervisorconfig['writedir'], 'block-{}-t120.h5'.format(bbid)),
+                 't201': os.path.join(supervisorconfig['writedir'], 'block-{}-t201.h5'.format(bbid))}
+
+            # Run supervisor
+            print_("[+] Dispatching supervisor...")
+
+            sprvsr = supervisor(supervisorconfig)
+            sprvsr.run()
+
+            # Read in the written volumes
+            print_("[+] Reading in HDF5 volumes for averaging...")
+            writtenvolumes = {dset: ndu.fromh5(wpath) for dset, wpath in writepaths.items()}
+
+            # Ensemble average and save with ID
+            print_("[+] Averaging...")
+            avgvol = (1./len(writtenvolumes)) * reduce(lambda a, b: a + b, writtenvolumes.values())
+
+            # Write avgvol to file
+            writepath = os.path.join(supervisorconfig['writedir'], 'block-{}-avgsig.h5'.format(bbid))
+            print_("[+] Writing final volume as float32 to file: {}...".format(writepath))
+            ndu.toh5(avgvol.astype('float32'), writepath)
+
         rawdatafile.close()
 
     elif supervisorconfig['mode'] == 'single':
