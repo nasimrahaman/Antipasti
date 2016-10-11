@@ -768,6 +768,18 @@ def parsejson(path):
     return arr
 
 
+# Undo transpose and average
+def ensemble(vols):
+    # List containing transpose-undone volumes
+    utransposed = [vols['t012'],
+                   vols['t120'].transpose(2, 0, 1),
+                   vols['t201'].transpose(1, 2, 0)]
+    # Average
+    avgvol = (1./len(utransposed)) * reduce(lambda a, b: a + b, utransposed)
+    # Return
+    return avgvol
+
+
 def autoqueue(supervisorconfig):
     # netdatautils does not depend on theano, so it's safe to import
     import Antipasti.netdatautils as ndu
@@ -826,7 +838,7 @@ def autoqueue(supervisorconfig):
 
             # Ensemble average and save with ID
             print_("[+] Averaging...")
-            avgvol = (1./len(writtenvolumes)) * reduce(lambda a, b: a + b, writtenvolumes.values())
+            avgvol = ensemble(writtenvolumes)
 
             # Write avgvol to file
             writepath = os.path.join(supervisorconfig['writedir'], 'block-{}-avgsig.h5'.format(bbid))
