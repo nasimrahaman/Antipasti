@@ -10,6 +10,7 @@ import imp
 import argparse
 import time
 import datetime
+import gc
 
 from random import choice, shuffle
 from argparse import Namespace
@@ -660,6 +661,7 @@ class supervisor(object):
             toh5(writevol, self.superconfig['writepaths'][dset])
             self.print_("[+] Wrote dataset {} to {}.".format(dset, self.superconfig['writepaths'][dset]))
             # Done.
+        # Kill workers
 
     # Populate worker list
     def hire(self):
@@ -825,12 +827,25 @@ def autoqueue(supervisorconfig):
 
         # Read bounding box coordinates
         bboxes = parsejson(supervisorconfig['subvol-bboxes'])
+        enbboxes = list(enumerate(bboxes))
+
+        # Get start and stop bounds for bboxes
+        bboxes_start = supervisorconfig['bbox-start']
+        bboxes_stop = supervisorconfig['bbox-stop']
+        # Whether to reverse bboxes
+        enbboxes = enbboxes[bboxes_start:bboxes_stop]
+
+        if supervisorconfig['bbox-rev']:
+            enbboxes.reverse()
 
         print_("[+] Ready.")
 
         # Loop over bounding boxes
-        for bbid, bbox in enumerate(bboxes):
+        for bbid, bbox in enbboxes:
             print_("[+] Processing box: {}.".format(bbid))
+            # Maybe this helps with the GC?
+            spconf = supervisorconfig.copy()
+
             # Set up config for the supervisor
             # Load subvol to RAM
             start, stop = bbox[0:2]
@@ -843,18 +858,18 @@ def autoqueue(supervisorconfig):
             print_("[+] Loaded and transposed volumes.")
 
             # Write to config
-            supervisorconfig['datasets'] = {'t012': subvol_t012, 't120': subvol_t120, 't201': subvol_t201}
+            spconf['datasets'] = {'t012': subvol_t012, 't120': subvol_t120, 't201': subvol_t201}
 
             # Set writepaths and write to config
-            supervisorconfig['writepaths'] = writepaths = \
-                {'t012': os.path.join(supervisorconfig['writedir'], 'block-{}-t012.h5'.format(bbid)),
-                 't120': os.path.join(supervisorconfig['writedir'], 'block-{}-t120.h5'.format(bbid)),
-                 't201': os.path.join(supervisorconfig['writedir'], 'block-{}-t201.h5'.format(bbid))}
+            spconf['writepaths'] = writepaths = \
+                {'t012': os.path.join(spconf['writedir'], 'block-{}-t012.h5'.format(bbid)),
+                 't120': os.path.join(spconf['writedir'], 'block-{}-t120.h5'.format(bbid)),
+                 't201': os.path.join(spconf['writedir'], 'block-{}-t201.h5'.format(bbid))}
 
             # Run supervisor
             print_("[+] Dispatching supervisor...")
 
-            sprvsr = supervisor(supervisorconfig)
+            sprvsr = supervisor(spconf)
             sprvsr.run()
 
             # Read in the written volumes
@@ -866,13 +881,23 @@ def autoqueue(supervisorconfig):
             avgvol = ensemble(writtenvolumes)
 
             # Write avgvol to file
-            writepath = os.path.join(supervisorconfig['writedir'], 'block-{}-avgsig.h5'.format(bbid))
+            writepath = os.path.join(spconf['writedir'], 'block-{}-avgsig.h5'.format(bbid))
             print_("[+] Writing final volume as float32 to file: {}...".format(writepath))
             ndu.toh5(avgvol.astype('float32'), writepath)
 
             # Clean up
             print_("Deleting transposed volumes...")
             clean(writepaths)
+
+            # Delete stuff to free memory?
+            del sprvsr
+            del subvol_t012
+            del subvol_t120
+            del subvol_t201
+            del spconf
+            del writtenvolumes
+            # Call the garbage man
+            gc.collect()
 
         rawdatafile.close()
 
