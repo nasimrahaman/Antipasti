@@ -836,11 +836,11 @@ class lasagnelayer(layer):
         assert las is not None, "Lasagne could not be imported."
 
         # Meta
-        self.inputlayers = inputlayers
-        self.outputlayers = outputlayers
+        self.inputlayers = pyk.delist(inputlayers)
+        self.outputlayers = pyk.delist(outputlayers)
 
         # Parse layer info
-        parsey = netutils.parselayerinfo(dim=2, allowsequences=True, numinp=len(inputlayers),
+        parsey = netutils.parselayerinfo(dim=2, allowsequences=True, numinp=pyk.smartlen(inputlayers),
                                          issequence=False, inpshape=inpshape)
 
         self.dim = parsey['dim']
@@ -862,8 +862,12 @@ class lasagnelayer(layer):
         if inpshape is None:
             inpshape = self.inpshape
 
-        # TODO
-        # outshape = las.layers.get_output_shape(self.outputlayers, self.inpshape)
-        pass
+        # Get output shape from Lasagne
+        outshape = las.layers.get_output_shape(self.outputlayers,
+                                               {inplayer: ishp for inplayer, ishp in
+                                                zip(pyk.obj2list(self.inputlayers), pyk.list2listoflists(inpshape))})
+        outshape = pyk.listoftuples2listoflists(outshape) if pyk.islistoflists(outshape) else list(outshape)
+        return outshape
 
-    pass
+    def feedforward(self, inp=None):
+        pass
