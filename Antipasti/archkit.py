@@ -839,9 +839,12 @@ class lasagnelayer(layer):
         self.inputlayers = pyk.delist(inputlayers)
         self.outputlayers = pyk.delist(outputlayers)
 
+        # Get inpshape from lasagne
+        self.lasinpshape = pyk.delist([list(il.shape) for il in pyk.obj2list(self.inputlayers)])
+
         # Parse layer info
         parsey = netutils.parselayerinfo(dim=2, allowsequences=True, numinp=pyk.smartlen(inputlayers),
-                                         issequence=False, inpshape=inpshape)
+                                         issequence=False, inpshape=self.lasinpshape)
 
         self.dim = parsey['dim']
         self.inpdim = parsey['inpdim']
@@ -853,21 +856,38 @@ class lasagnelayer(layer):
         self.inpshape = parsey['inpshape']
 
         # Check numout for consistency
-        assert self.numout == len(self.outputlayers), "Number of outputs doesn't match " \
-                                                      "the given number of output-layers"
+        assert self.numout == pyk.smartlen(self.outputlayers), "Number of outputs doesn't match " \
+                                                               "the given number of output-layers"
 
         self.x, self.y = netutils.makelayerxy(self.inpdim, self.outdim, id(self))
 
-    def inferoutshape(self, inpshape=None, checkinput=False):
+    def inferoutshape(self, inpshape=None, checkinput=True):
         if inpshape is None:
             inpshape = self.inpshape
+
+        if checkinput:
+            # Compare shape with Antipasti inpshape
+            assert netutils.shpcmp(self.lasinpshape, inpshape), "Lasagne input shape is not consistent with the " \
+                                                                "inferred Antipasti input shape."
 
         # Get output shape from Lasagne
         outshape = las.layers.get_output_shape(self.outputlayers,
                                                {inplayer: ishp for inplayer, ishp in
                                                 zip(pyk.obj2list(self.inputlayers), pyk.list2listoflists(inpshape))})
+
         outshape = pyk.listoftuples2listoflists(outshape) if pyk.islistoflists(outshape) else list(outshape)
         return outshape
 
     def feedforward(self, inp=None):
-        pass
+        if inp is None:
+            inp = self.x
+        else:
+            self.x = inp
+
+        # Get output from Lasagne
+        out = las.layers.get_output(self.outputlayers,
+                                    inputs={inplayer: ishp for inplayer, ishp in
+                                            zip(pyk.obj2list(self.inputlayers), pyk.obj2list(inp))})
+        # In case out is a list:
+        self.y = pyk.delist(out)
+        return self.y

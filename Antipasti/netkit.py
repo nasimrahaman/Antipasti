@@ -939,7 +939,7 @@ class convlayer(layer):
     # Constructor
     def __init__(self, fmapsin, fmapsout, kersize, stride=None, padding=None, dilation=None, activation=netools.linear(),
                  alpha=None, makedecoder=False, zerobias=False, tiedbiases=True, convmode='same', allowsequences=True,
-                 inpshape=None, W=None, b=None, bp=None, Wc=None, bc=None, bpc=None, Wgc=None, bgc=None, bpgc=None,
+                 inpshape=None, W=None, b=None, bp=None, Wc=None, bc=None, Wgc=None, bgc=None,
                  allowgradmask=False):
 
         """
@@ -1100,7 +1100,7 @@ class convlayer(layer):
             self.dilation = [1, ] * (self.dim + (0 if not self.issequence else 1))
         else:
             if self.dim == 2:
-                dilation = [dilation, ] * (self.dim + (0 if not self.issequence else 1)) if isinstance(dilation, int) \
+                dilation = ([dilation, ] * (self.dim + (0 if not self.issequence else 1))) if isinstance(dilation, int) \
                     else dilation
                 assert len(dilation) == len(self.kersize), "Dilation and kersize must have the same length."
                 assert self.stride == [1, 1], "Stride must be [1, 1] for dilated convolutions."
