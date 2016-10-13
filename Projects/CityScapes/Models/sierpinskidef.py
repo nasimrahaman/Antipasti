@@ -187,6 +187,28 @@ def fuseterminate(numout=3):
     return fuse
 
 
+# Terminate gradually
+def vggterminate(numout=3, finalactivation=None):
+
+    # Parse final layer
+    if finalactivation == 'softmax' or finalactivation is None:
+        fl = cll(4 * numout, numout, [1, 1]) + sml()
+    elif finalactivation == 'linear':
+        fl = cll(4 * numout, numout, [1, 1])
+    elif finalactivation == 'sigmoid':
+        fl = cls(4 * numout, numout, [1, 1])
+    else:
+        raise NotImplementedError
+
+    # Build fusion module
+    fuse = trks(cl(numout, numout, [3, 3]) + iusl(), idl(), idl(), idl()) + trks(merl(2), idl(), idl()) + \
+           trks(cl(2 * numout, numout, [5, 5]) + iusl(), idl(), idl()) + trks(merl(2), idl()) + \
+           trks(cl(2 * numout, numout, [7, 7]) + iusl(), idl()) + merl(2) + \
+           cl(2 * numout, numout, [9, 9]) + cl(numout, numout, [3, 3]) + fl
+    # Done
+    return fuse
+
+
 # Initiate a network
 def initiate(preinit=None, numinp=None):
 
@@ -202,9 +224,31 @@ def initiate(preinit=None, numinp=None):
     return start
 
 
+# VGG initiator module
+def vgginitiate(parampath=None, trainable=False):
+    # Import
+    import vgg16
+    # Build
+    start = vgg16.build(parampath=parampath, trainable=trainable)
+    # Return
+    return start
+
+
+# Residualize a Cantor block
+def residualize(blk):
+    # <sorcery>
+    res = crcl([0, 1, 2, 3, 0, 1, 2, 3]) + \
+          trks(blk, idl(), idl(), idl(), idl()) + \
+          crcl([0, 4, 1, 5, 2, 6, 3, 7]) + \
+          trks(adl(2), adl(2), adl(2), adl(2))
+    # </sorcery>
+    return res
+
+
 # Build network from multiple blocks
-def build(N=30, depth=5, transfer=None, parampath=None, numinp=3,
-          numout=3, finalactivation='softmax', optimizer='momsgd', usewmap=True, savedir=None):
+def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
+          initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False,
+          optimizer='momsgd', usewmap=True, savedir=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -218,13 +262,26 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3,
     else:
         transfer = idl
 
-    term = terminate
+    if termination == 'legacy':
+        term = terminate
+    elif termination == 'vgg':
+        term = vggterminate
+
+    if initiation == 'legacy':
+        init = initiate
+    elif initiation == 'vgg':
+        raise NotImplementedError
+
+    if not residual:
+        midblock = block
+    else:
+        midblock = lambda *args, **kwargs: residualize(block(*args, **kwargs))
 
     print("[+] Activation of the final layer is set to: {}.".format(finalactivation))
 
     net = initiate(numinp=numinp) + \
           block(N=N, pos='start', numinp=numinp) + trks(transfer(), transfer(), transfer(), transfer()) + \
-          reduce(lambda x, y: x + y, [block(N=N) +
+          reduce(lambda x, y: x + y, [midblock(N=N) +
                                       trks(transfer(), transfer(), transfer(), transfer())
                                       for _ in range(depth)]) + \
           block(N=N, pos='stop', numout=numout) + \
@@ -284,3 +341,5 @@ def error(net):
     net.E = E
     return net
 
+if __name__ == '__main__':
+    pass
