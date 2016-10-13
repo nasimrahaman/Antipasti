@@ -36,6 +36,7 @@ import theano.tensor as T
 import numpy as np
 from theano.tensor.shared_randomstreams import RandomStreams
 
+import netutils
 
 
 # Utils
@@ -327,7 +328,8 @@ def Lp(params, p=2):
     """
 
     # Compute Lp^p
-    lpn = sum(map(T.sum, map(lambda k: k ** p, params)))
+    lpn = sum(map(T.sum, map(lambda k: k ** p,
+                             [param for param in params if netutils.getbaggage(param, 'regularizable', True)])))
 
     # Return
     return lpn
@@ -407,7 +409,8 @@ def sgd(params, cost=None, gradients=None, learningrate=1e-4):
         dC = gradients
 
     # Compute updates
-    upd = [(param, param - learningrate * dparam) for param, dparam in zip(params, dC)]
+    upd = [(param, param - learningrate * dparam) for param, dparam in zip(params, dC)
+           if netutils.getbaggage(param, 'trainable', True)]
 
     # Return
     return upd
@@ -486,6 +489,10 @@ def adam(params, cost=None, gradients=None, learningrate=0.0002, beta1=0.9, beta
     at = learningrate*T.sqrt(1-beta2**t)/(1-beta1**t)
 
     for param, dparam in zip(params, dC):
+        # Check if layer is trainable. Skip if not.
+        if not netutils.getbaggage(param, 'trainable', True):
+            continue
+
         paramshape = param.get_value().shape
 
         mtm1 = th.shared(np.zeros(paramshape, dtype=th.config.floatX))
@@ -549,6 +556,10 @@ def momsgd(params, cost=None, gradients=None, learningrate=0.01, momentum=0.9, n
     updates = []
 
     for param, dparam in zip(params, dC):
+        # Check if layer is trainable. Skip if not.
+        if not netutils.getbaggage(param, 'trainable', True):
+            continue
+
         # Fetch parameter shape
         paramshape = param.get_value().shape
         # ... and init initial momentum
@@ -588,6 +599,10 @@ def rmsprop(params, cost=None, gradients=None, learningrate=0.0005, rho=0.9, eps
     updates = []
 
     for param, dparam in zip(params, dC):
+        # Check if layer is trainable. Skip if not.
+        if not netutils.getbaggage(param, 'trainable', True):
+            continue
+
         paramshape = param.get_value().shape
         acc = th.shared(np.zeros(paramshape, dtype=th.config.floatX))
         newacc = rho * acc + (1 - rho) * dparam ** 2
