@@ -905,4 +905,4 @@ class lasagnelayer(layer):
         for param in self.params:
             param.name += '-laslayerparam:{}'.format(id(self))
         for cparam in self.cparams:
-            cparam.name += '-laslayercparam:{}'.format(id(self))
+            cparam.name = ('cparam' if cparam.name is None else cparam.name) + '-laslayercparam:{}'.format(id(self))
