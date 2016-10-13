@@ -722,7 +722,7 @@ class activationlayer(layer):
 
 class functionlayer(layer):
     def __init__(self, func, shapefunc=None, funcargs=None, funckwargs=None, shapefuncargs=None, shapefunckwargs=None,
-                 numinp=1, numout=1, dim=None, issequence=None, inpshape=None):
+                 numinp=1, dim=None, issequence=None, inpshape=None):
         """
         Layer to apply any given function to input(s). The function may require multiple inputs and
         return multiple outputs. The function may change the shape of the tensor, but then a `shapefunc`
@@ -784,17 +784,12 @@ class functionlayer(layer):
 
         # Structure inference
         self.numinp = parsey['numinp']
-        self.numout = numout
 
         # Shape inference
         self.inpshape = parsey['inpshape']
 
         # Containers for X and Y
-        self.x = pyk.delist([T.tensor('floatX', [False, ] * indim, name='x{}:'.format(inpnum) + str(id(self)))
-                             for inpnum, indim in enumerate(pyk.obj2list(self.inpdim))])
-        self.y = pyk.delist([T.tensor('floatX', [False, ] * oudim, name='x{}:'.format(outnum) + str(id(self)))
-                             for outnum, oudim in enumerate(pyk.obj2list(self.outdim))])
-
+        self.x, self.y = netutils.makelayerxy(self.inpdim, self.outdim, id(self))
 
     def feedforward(self, inp=None):
         if inp is None:
@@ -824,20 +819,90 @@ class functionlayer(layer):
 
 class lasagnelayer(layer):
     """Class to wrap Theano graphs built with Lasagne."""
-    def __init__(self, outputlayers, numinp=1, inpshape=None):
+    def __init__(self, inputlayers, outputlayers):
+        """
+        :type inputlayers: list
+        :param inputlayers: List of Lasagne input layers.
+
+        :type outputlayers: list
+        :param outputlayers: List of output layers.
+        """
         # Init superclass
         super(lasagnelayer, self).__init__()
         # Make sure lasagne is available
         assert las is not None, "Lasagne could not be imported."
 
+        # Meta
+        self.inputlayers = pyk.delist(inputlayers)
+        self.outputlayers = pyk.delist(outputlayers)
+
+        # Get inpshape from lasagne
+        self.lasinpshape = pyk.delist([list(il.shape) for il in pyk.obj2list(self.inputlayers)])
+
         # Parse layer info
-        parsey = netutils.parselayerinfo(dim=2, allowsequences=True, numinp=numinp, issequence=False,
-                                         inpshape=inpshape)
+        parsey = netutils.parselayerinfo(dim=2, allowsequences=True, numinp=pyk.smartlen(inputlayers),
+                                         issequence=False, inpshape=self.lasinpshape)
 
         self.dim = parsey['dim']
         self.inpdim = parsey['inpdim']
         self.allowsequences = parsey['allowsequences']
         self.issequence = parsey['issequence']
+        self.numinp = parsey['numinp']
 
-        pass
-    pass
+        # Read parameters
+        self._params = las.layers.get_all_params(self.outputlayers)
+        self._cparams = [netutils.getshared(like=param, value=1.) for param in self.params]
+        # Name parameters right
+        self.nameparams()
+
+        # Shape inference
+        self.inpshape = parsey['inpshape']
+
+        # Check numout for consistency
+        assert self.numout == pyk.smartlen(self.outputlayers), "Number of outputs doesn't match " \
+                                                               "the given number of output-layers"
+
+        self.x, self.y = netutils.makelayerxy(self.inpdim, self.outdim, id(self))
+
+    def inferoutshape(self, inpshape=None, checkinput=True):
+        if inpshape is None:
+            inpshape = self.inpshape
+
+        if checkinput:
+            # Compare shape with Antipasti inpshape
+            assert netutils.shpcmp(self.lasinpshape, inpshape), "Lasagne input shape is not consistent with the " \
+                                                                "inferred Antipasti input shape."
+
+        # Get output shape from Lasagne
+        outshape = las.layers.get_output_shape(self.outputlayers,
+                                               {inplayer: ishp for inplayer, ishp in
+                                                zip(pyk.obj2list(self.inputlayers), pyk.list2listoflists(inpshape))})
+
+        outshape = pyk.listoftuples2listoflists(outshape) if pyk.islistoflists(outshape) else list(outshape)
+        return outshape
+
+    def feedforward(self, inp=None):
+        if inp is None:
+            inp = self.x
+        else:
+            self.x = inp
+
+        # Get output from Lasagne
+        out = las.layers.get_output(self.outputlayers,
+                                    inputs={inplayer: ishp for inplayer, ishp in
+                                            zip(pyk.obj2list(self.inputlayers), pyk.obj2list(inp))})
+        # In case out is a list:
+        self.y = pyk.delist(out)
+        return self.y
+
+    def applylasagneparams(self, params=None):
+        # Convert to numerical
+        params = netutils.sym2num(params)
+        # Have Lasagne apply all parameters
+        las.layers.set_all_param_values(self.outputlayers, params)
+
+    def nameparams(self):
+        for param in self.params:
+            param.name += '-laslayerparam:{}'.format(id(self))
+        for cparam in self.cparams:
+            cparam.name += '-laslayercparam:{}'.format(id(self))

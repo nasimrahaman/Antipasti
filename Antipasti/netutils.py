@@ -439,6 +439,16 @@ def gradientcheck(cost, param, variables):
     # TODO
     pass
 
+
+# Function to make x and y of a given layer
+def makelayerxy(inpdim, outdim, layerid):
+    x = pyk.delist([T.tensor('floatX', [False, ] * indim, name='x{}:'.format(inpnum) + str(layerid))
+                    for inpnum, indim in enumerate(pyk.obj2list(inpdim))])
+    y = pyk.delist([T.tensor('floatX', [False, ] * oudim, name='y{}:'.format(outnum) + str(layerid))
+                    for outnum, oudim in enumerate(pyk.obj2list(outdim))])
+    return x, y
+
+
 # Function to cross-parse data dimensionality, inpshape, input dimensionality, and 'issequence'. Raises an error if
 # something can't be parsed. Returns a dictionary of parsed items.
 def parselayerinfo(dim=None, inpdim=None, issequence=None, allowsequences=None, numinp=None, inpshape=None,
@@ -580,6 +590,47 @@ def parselayerinfo(dim=None, inpdim=None, issequence=None, allowsequences=None, 
 
     # Return parsey :(
     return parsey
+
+
+# Compare shapes if they're not None
+def shpcmp(shape1, shape2):
+    # Lambda to compare lists except for None's.
+    cmplst = lambda l1, l2: all([elem1 == elem2 if None not in [elem1, elem2] else True
+                                 for elem1, elem2 in zip(l1, l2)]) and (len(l1) == len(l2))
+    # First test: Shape1 and shape2 must both (not) be a list of list
+    shpeq = pyk.islistoflists(shape1) == pyk.islistoflists(shape2)
+    # Second test: number of inputs.
+    shpeq = shpeq and (len(pyk.list2listoflists(shape1)) == len(pyk.list2listoflists(shape2)))
+    # Third test: list comparisons
+    shpeq = shpeq and all([cmplst(l1, l2) for l1, l2 in
+                           zip(pyk.list2listoflists(shape1), pyk.list2listoflists(shape2))])
+    # Done
+    return shpeq
+
+
+# Fetch item from baggage. Be careful about the default, esp. when obj.baggage[key] = default.
+def getbaggage(obj, key, default=None):
+    # Return default if obj has no baggage
+    if not hasattr(obj, 'baggage'):
+        return default
+    else:
+        if key in obj.baggage.keys():
+            return obj.baggage[key]
+        else:
+            return default
+
+
+# Set baggage.
+def setbaggage(objs, **baggage):
+    baggage = baggage['baggage'] if 'baggage' in baggage.keys() else baggage
+    for obj in pyk.obj2list(objs, ndarray2list=False):
+        # Check if obj has a baggage.
+        if hasattr(obj, 'baggage'):
+            # Update baggage with new entries
+            obj.baggage.update(baggage)
+        else:
+            # Make new baggage
+            obj.baggage = baggage
 
 
 # Function to eval and test a (sub-)model for correctness (at forward pass)
