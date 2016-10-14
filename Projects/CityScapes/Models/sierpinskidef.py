@@ -1,3 +1,5 @@
+import sys
+
 import theano as th
 import theano.tensor as T
 import numpy as np
@@ -227,6 +229,7 @@ def initiate(preinit=None, numinp=None):
 # VGG initiator module
 def vgginitiate(parampath=None, trainable=False):
     # Import
+    sys.path.append(os.path.abspath('{}/../'.format(__file__)))
     import vgg16
     # Build
     start = vgg16.build(parampath=parampath, trainable=trainable)
