@@ -257,7 +257,7 @@ def residualize(blk):
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
           initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False,
-          optimizer='momsgd', usewmap=True, savedir=None):
+          optimizer='momsgd', usewmap=True, savedir=None, inpshape=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -308,6 +308,10 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
                                       for _ in range(depth)]) + \
           block(N=N, pos='stop', numout=numout) + \
           term(numout=numout, finalactivation=finalactivation)
+
+    # Set input shape for ghost variables (if required)
+    if inpshape is not None:
+        net.inpshape = inpshape
 
     net.feedforward()
 
