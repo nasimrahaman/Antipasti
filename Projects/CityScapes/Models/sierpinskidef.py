@@ -228,14 +228,19 @@ def initiate(preinit=None, numinp=None):
 
 
 # VGG initiator module
-def vgginitiate(parampath=None, trainable=False):
+def vgginitiate(N=64, parampath=None, trainable=False):
     # Import
     sys.path.append(os.path.abspath('{}/../'.format(__file__)))
     import vgg16
     # Build
     start = vgg16.build(parampath=parampath, trainable=trainable)
+    # If N != 64, we're gonna need a module to reduce the number of filtermaps.
+    if N != 64:
+        launch = trks(cl(512, 8 * N, [3, 3]), cl(768, 12 * N, [5, 5]), cl(384, 6 * N, [7, 7]), cl(192, 3 * N, [9, 9]))
+    else:
+        launch = trks(idl(), idl(), idl(), idl())
     # Return
-    return start
+    return start + launch
 
 
 # Residualize a Cantor block
@@ -276,10 +281,15 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
     if initiation == 'legacy':
         init = initiate
     elif initiation == 'vgg':
-        init = lambda numinp: vgginitiate(parampath=vggparampath, trainable=vggtrainable)
+        assert numinp == 3, "Number of input channels must equal 3 (RGB) for VGG initiation."
+
         if N != 64:
-            print("[-] VGG initialization is only possible for N=64. Setting N to 64.")
-        N = 64
+            print("[-] VGG initialization is only possible with a launcher module.")
+
+        if vggparampath is None:
+            print("[-] Using VGG initialization but without pretrained parameters to initialize VGG.")
+
+        init = lambda numinp: vgginitiate(parampath=vggparampath, trainable=vggtrainable, N=N)
     else:
         raise NotImplementedError
 
@@ -354,5 +364,5 @@ def error(net):
     return net
 
 if __name__ == '__main__':
-    nw = build(N=64, depth=4, numinp=3, numout=19, initiation='vgg', termination='vgg', residual=True)
+    nw = build(N=30, depth=4, numinp=3, numout=19, initiation='vgg', termination='vgg', residual=True)
     pass
