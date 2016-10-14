@@ -266,10 +266,17 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
         term = terminate
     elif termination == 'vgg':
         term = vggterminate
+    else:
+        raise NotImplementedError
 
     if initiation == 'legacy':
         init = initiate
     elif initiation == 'vgg':
+        init = lambda numinp: vgginitiate(parampath=vggparampath, trainable=vggtrainable)
+        if N != 64:
+            print("[-] VGG initialization is only possible for N=64. Setting N to 64.")
+        N = 64
+    else:
         raise NotImplementedError
 
     if not residual:
@@ -279,7 +286,7 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
 
     print("[+] Activation of the final layer is set to: {}.".format(finalactivation))
 
-    net = initiate(numinp=numinp) + \
+    net = init(numinp=numinp) + \
           block(N=N, pos='start', numinp=numinp) + trks(transfer(), transfer(), transfer(), transfer()) + \
           reduce(lambda x, y: x + y, [midblock(N=N) +
                                       trks(transfer(), transfer(), transfer(), transfer())

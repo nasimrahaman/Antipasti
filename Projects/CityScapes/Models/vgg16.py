@@ -9,13 +9,11 @@ __doc__ = "Wrap Lasagne VGG-16 in an Antipasti layer."
 # https://s3.amazonaws.com/lasagne/recipes/pretrained/imagenet/vgg16.pkl
 
 from lasagne.layers import InputLayer
-from lasagne.layers import DenseLayer
-from lasagne.layers import NonlinearityLayer
-from lasagne.layers import DropoutLayer
 from lasagne.layers import Pool2DLayer as PoolLayer
+from lasagne.layers import Upscale2DLayer as UpscaleLayer
+from lasagne.layers import ConcatLayer
 from lasagne.layers import set_all_param_values
 from lasagne.layers.dnn import Conv2DDNNLayer as ConvLayer
-from lasagne.nonlinearities import softmax
 
 import Antipasti.archkit as ak
 import Antipasti.netutils as nu
@@ -29,7 +27,7 @@ def build_model(parampath=None):
 
     net = {}
 
-    net['input'] = InputLayer((None, 3, 224, 224))
+    net['input'] = InputLayer((None, 3, None, None))
     net['conv1_1'] = ConvLayer(
         net['input'], 64, 3, pad=1, flip_filters=False)
     net['conv1_2'] = ConvLayer(
@@ -57,33 +55,21 @@ def build_model(parampath=None):
     net['conv4_3'] = ConvLayer(
         net['conv4_2'], 512, 3, pad=1, flip_filters=False)
 
-    net['pool4'] = PoolLayer(net['conv4_3'], 2)
-    net['conv5_1'] = ConvLayer(
-        net['pool4'], 512, 3, pad=1, flip_filters=False)
-    net['conv5_2'] = ConvLayer(
-        net['conv5_1'], 512, 3, pad=1, flip_filters=False)
-    net['conv5_3'] = ConvLayer(
-        net['conv5_2'], 512, 3, pad=1, flip_filters=False)
-
-    net['pool5'] = PoolLayer(net['conv5_3'], 2)
-    net['fc6'] = DenseLayer(net['pool5'], num_units=4096)
-    net['fc6_dropout'] = DropoutLayer(net['fc6'], p=0.5)
-    net['fc7'] = DenseLayer(net['fc6_dropout'], num_units=4096)
-    net['fc7_dropout'] = DropoutLayer(net['fc7'], p=0.5)
-    net['fc8'] = DenseLayer(
-        net['fc7_dropout'], num_units=1000, nonlinearity=None)
-
-    net['prob'] = NonlinearityLayer(net['fc8'], softmax)
-
     if parampath is not None:
         params = unpickle(parampath)
-        set_all_param_values(net['prob'], params['param values'])
+        set_all_param_values(net['conv4_3'], params['param values'][:-12])
+
+    # Make exit points for the initiator module
+    net['exit1'] = net['conv4_3']
+    net['exit2'] = ConcatLayer([UpscaleLayer(net['conv4_3'], 2), net['conv3_2']])
+    net['exit3'] = ConcatLayer([UpscaleLayer(net['conv3_2'], 2), net['conv2_2']])
+    net['exit4'] = ConcatLayer([UpscaleLayer(net['conv2_2'], 2), net['conv1_2']])
 
     return net
 
 
 def wrap(model, trainable=False):
-    lay = ak.lasagnelayer(model['input'], [model['conv4_3'], model['conv3_2'], model['conv2_2'], model['conv1_2']])
+    lay = ak.lasagnelayer(model['input'], [model['exit1'], model['exit2'], model['exit3'], model['exit4']])
     # Carry the lasagne model dictionary as baggage
     nu.setbaggage(lay, networkdict=model)
     # Set whether parameters are trainable
@@ -100,3 +86,6 @@ def build(parampath=None, trainable=False):
     apmodel = wrap(lasmodel, trainable=trainable)
     # Done
     return apmodel
+
+if __name__ == '__main__':
+    build('/home/nrahaman/Downloads/vgg16.pkl')
