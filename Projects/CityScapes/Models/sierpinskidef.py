@@ -195,11 +195,11 @@ def vggterminate(numout=3, finalactivation=None):
 
     # Parse final layer
     if finalactivation == 'softmax' or finalactivation is None:
-        fl = cll(4 * numout, numout, [1, 1]) + sml()
+        fl = cll(numout, numout, [1, 1]) + sml()
     elif finalactivation == 'linear':
-        fl = cll(4 * numout, numout, [1, 1])
+        fl = cll(numout, numout, [1, 1])
     elif finalactivation == 'sigmoid':
-        fl = cls(4 * numout, numout, [1, 1])
+        fl = cls(numout, numout, [1, 1])
     else:
         raise NotImplementedError
 
@@ -291,7 +291,8 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
     print("[+] Activation of the final layer is set to: {}.".format(finalactivation))
 
     net = init(numinp=numinp) + \
-          block(N=N, pos='start', numinp=numinp) + trks(transfer(), transfer(), transfer(), transfer()) + \
+          (block(N=N, pos='start', numinp=numinp) if initiation == 'legacy' else trks(idl(), idl(), idl(), idl())) + \
+          trks(transfer(), transfer(), transfer(), transfer()) + \
           reduce(lambda x, y: x + y, [midblock(N=N) +
                                       trks(transfer(), transfer(), transfer(), transfer())
                                       for _ in range(depth)]) + \
@@ -353,4 +354,5 @@ def error(net):
     return net
 
 if __name__ == '__main__':
+    nw = build(N=64, depth=4, numinp=3, numout=19, initiation='vgg', termination='vgg', residual=True)
     pass
