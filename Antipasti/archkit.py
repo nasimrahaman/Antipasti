@@ -648,7 +648,8 @@ class addlayer(layer):
             sum([isinstance(ishp, list) for ishp in inpshape]) == self.numinp, "Inpshape must be a list of input " \
                                                                                "shapes of {} layer " \
                                                                                "inputs.".format(self.numinp)
-            assert all([ishp == inpshape[0] for ishp in inpshape]), "All inputs must have the same shape."
+            assert all([netutils.shpcmp(ishp, inpshape[0]) for ishp in inpshape]), \
+                "All inputs must have the same shape."
 
         outshape = inpshape[0]
 
