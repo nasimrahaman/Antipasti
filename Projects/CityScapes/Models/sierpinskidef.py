@@ -212,6 +212,31 @@ def vggterminate(numout=3, finalactivation=None):
     return fuse
 
 
+# Gradually terminate the cantor chain
+def gterminate(numout=3, finalactivation=None, N=30):
+
+    # Parse final layer
+    if finalactivation == 'softmax' or finalactivation is None:
+        fl = cll(numout, numout, [1, 1]) + sml()
+    elif finalactivation == 'linear':
+        fl = cll(numout, numout, [1, 1])
+    elif finalactivation == 'sigmoid':
+        fl = cls(numout, numout, [1, 1])
+    else:
+        raise NotImplementedError
+
+    fuse = trks(cl(8*N, 4*N, [3, 3]) + iusl(), cl(12*N, 6*N, [3, 3]), cl(6*N, 3*N, [5, 5]), cl(3*N, 2*N, [5, 5])) + \
+           trks(merl(2), idl(), idl()) + \
+           trks(cl(10*N, 5*N, [3, 3]) + cl(5*N, 3*N, [3, 3]) + iusl(), cl(3*N, 3*N, [3, 3]), cl(2*N, N, [5, 5])) + \
+           trks(merl(2), idl()) + \
+           trks(cl(6*N, 4*N, [3, 3]) + cl(4*N, 2*N, [3, 3]) + iusl(), cl(N, N, [3, 3])) + \
+           merl(2) + \
+           cl(3*N, 2*N, [3, 3]) + cl(2*N, N, [3, 3]) + \
+           drl() + cl(N, N, [1, 1]) + drl() + cl(N, N, [1, 1]) + drl() + cl(N, numout, [1, 1]) + fl
+
+    return fuse
+
+
 # Initiate a network
 def initiate(preinit=None, numinp=None):
 
@@ -256,7 +281,7 @@ def residualize(blk):
 
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
-          initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False,
+          initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False, gterm=False,
           optimizer='momsgd', usewmap=True, savedir=None, inpshape=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
@@ -306,8 +331,8 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
           reduce(lambda x, y: x + y, [midblock(N=N) +
                                       trks(transfer(), transfer(), transfer(), transfer())
                                       for _ in range(depth)]) + \
-          block(N=N, pos='stop', numout=numout) + \
-          term(numout=numout, finalactivation=finalactivation)
+          ((block(N=N, pos='stop', numout=numout) + term(numout=numout, finalactivation=finalactivation))
+           if not gterm else gterminate(numout=numout, finalactivation=finalactivation, N=N))
 
     # Set input shape for ghost variables (if required)
     if inpshape is not None:
