@@ -281,7 +281,7 @@ def residualize(blk):
 
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
-          initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False, gterm=False,
+          initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False,
           optimizer='momsgd', usewmap=True, savedir=None, inpshape=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
@@ -300,8 +300,13 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
         term = terminate
     elif termination == 'vgg':
         term = vggterminate
+    elif termination == 'gterm':
+        # This statement should be useless
+        term = terminate
     else:
         raise NotImplementedError
+
+    print("[+] Using termination mode: {}".format(termination))
 
     if initiation == 'legacy':
         init = initiate
@@ -318,6 +323,8 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
     else:
         raise NotImplementedError
 
+    print("[+] Using initiation mode: {}".format(initiation))
+
     if not residual:
         midblock = block
     else:
@@ -332,7 +339,7 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
                                       trks(transfer(), transfer(), transfer(), transfer())
                                       for _ in range(depth)]) + \
           ((block(N=N, pos='stop', numout=numout) + term(numout=numout, finalactivation=finalactivation))
-           if not gterm else gterminate(numout=numout, finalactivation=finalactivation, N=N))
+           if termination != 'gterm' else gterminate(numout=numout, finalactivation=finalactivation, N=N))
 
     # Set input shape for ghost variables (if required)
     if inpshape is not None:
