@@ -11,24 +11,26 @@ import Antipasti.archkit as ak
 import Antipasti.netools as ntl
 import Antipasti.netrain as nt
 
+# Hard parameters
+initscheme = 'he'
 
 # Define shortcuts
 # Convlayer with ELU
 cl = lambda fmapsin, fmapsout, kersize: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout, kersize=kersize,
-                                                     activation=ntl.elu())
+                                                     activation=ntl.elu(), W=initscheme)
 
 # Convlayer without activation
-cll = lambda fmapsin, fmapsout, kersize: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout, kersize=kersize)
+cll = lambda fmapsin, fmapsout, kersize: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout, kersize=kersize, W=initscheme)
 
 # Convlayer with Sigmoid
 cls = lambda fmapsin, fmapsout, kersize: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout, kersize=kersize,
-                                                      activation=ntl.sigmoid())
+                                                      activation=ntl.sigmoid(), W=initscheme)
 
 # Strided convlayer with ELU (with autopad)
 scl = lambda fmapsin, fmapsout, kersize, padding=None: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout,
                                                                     kersize=kersize,
                                                                     stride=[2, 2], activation=ntl.elu(),
-                                                                    padding=padding)
+                                                                    padding=padding, W=initscheme)
 
 # Strided 3x3 pool layerlayertrain or Antipasti.netarchs.layertrainyard
 spl = lambda: nk.poollayer(ds=[3, 3], stride=[2, 2], padding=[1, 1])
@@ -282,7 +284,7 @@ def residualize(blk):
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
           initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False,
-          optimizer='momsgd', usewmap=True, savedir=None, inpshape=None):
+          optimizer='momsgd', usewmap=True, savedir=None, inpshape=None, lasagneoptimizer=False):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -347,13 +349,19 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
 
     net.feedforward()
 
-    net = prep(net, parampath=parampath, usewmap=usewmap, savedir=savedir, optimizer=optimizer)
+    net = prep(net, parampath=parampath, usewmap=usewmap, savedir=savedir, optimizer=optimizer,
+               lasagneoptimizer=lasagneoptimizer)
 
     return net
 
 
 # Prepare network
-def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None):
+def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None, lasagneoptimizer=False, lasagneobj=False):
+
+    if lasagneoptimizer or lasagneobj:
+        import lasagne as las
+    else:
+        las = None
 
     # Load params if required to
     if parampath is not None:
@@ -366,23 +374,36 @@ def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None):
     net.baggage["l2"] = th.shared(value=np.float32(0.00001))
 
     # Set up weight maps if required
+    print("[+] Setting up objective...")
     if usewmap:
         net.baggage["wmap"] = T.tensor4()
         net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, net.baggage["l2"])])
     else:
         net.cost(method='cce', regterms=[(2, net.baggage["l2"])])
 
+    print("[+] Setting up optimizer with {}...".format("Lasagne" if lasagneoptimizer else "Antipasti"))
     if optimizer == 'momsgd':
-        net.getupdates(method=optimizer, learningrate=net.baggage["learningrate"], nesterov=True)
-    elif optimizer == 'adam':
-        net.getupdates(method=optimizer, learningrate=net.baggage["learningrate"])
+        if not lasagneoptimizer:
+            net.getupdates(method=optimizer, learningrate=net.baggage["learningrate"], nesterov=True)
+        else:
+            raise NotImplementedError
 
+    elif optimizer == 'adam':
+        if not lasagneoptimizer:
+            net.getupdates(method=optimizer, learningrate=net.baggage["learningrate"])
+        else:
+            net.updates = las.updates.adam(net.dC, net.params, learning_rate=net.baggage['learningrate']).items()
+
+    print("[+] Setting up error metric...")
     # Compute errors
     net = error(net)
 
     # Assign Save directory.
     if savedir is not None:
+        print("[+] Saving weights to {}...".format(savedir))
         net.savedir = savedir
+    else:
+        print("[-] WARNING: Saving weights to the default directory.")
 
     return net
 
@@ -400,5 +421,6 @@ def error(net):
     return net
 
 if __name__ == '__main__':
-    nw = build(N=30, depth=4, numinp=3, numout=19, initiation='vgg', termination='vgg', residual=True)
+    nw = build(N=30, depth=4, numinp=3, numout=19, initiation='vgg', termination='gterm', residual=False,
+               lasagneoptimizer=True, optimizer='adam')
     pass
