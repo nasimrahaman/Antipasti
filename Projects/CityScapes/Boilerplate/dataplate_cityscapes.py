@@ -44,8 +44,11 @@ def buildpreptrains(prepconfig):
 
     if ffd(prepconfig, 'normalize', False):
         ptXY.append(pk.funczip((pk.cast(),)))
-        ptXY.append(pk.funczip((pk.im2double(8),)))
-        ptXY.append(pk.funczip((pk.normalizebatch(),)))
+        if ffd(prepconfig, 'vgg', True):
+            ptXY.append(pk.funczip((pf['normalize'](np.array([73.15835921, 82.90891754, 72.39239876])),)))
+        else:
+            ptXY.append(pk.funczip((pk.im2double(8),)))
+            ptXY.append(pk.funczip((pk.normalizebatch(),)))
 
     # Done
     return {'XY': ptXY}

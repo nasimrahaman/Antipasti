@@ -99,5 +99,24 @@ def prepfunctions():
         # Done
         return _func
 
+    def normalize(meanvals=None):
+        # Normalize like the VGG expects it.
+        def _func(batchX):
+
+            # Compute meanvals if none provided
+            _meanvals = meanvals
+            if _meanvals is None:
+                _meanvals = batchX.mean(axis=(0, 2, 3))
+            # Reshape
+            _meanvals = _meanvals.reshape(1, 3, 1, 1)
+
+            # Subract mean
+            batchX = batchX - _meanvals
+
+            # Put the batch back together and return
+            return batchX
+
+        return _func
+
     return vars()
 
