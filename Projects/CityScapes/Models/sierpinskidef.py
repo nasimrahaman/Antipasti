@@ -387,9 +387,9 @@ def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None, la
     print("[+] Setting up objective...")
     if usewmap:
         net.baggage["wmap"] = T.tensor4()
-        net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, net.baggage["l2"])], nanguard=False)
+        net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, net.baggage["l2"])], clip=True)
     else:
-        net.cost(method='cce', regterms=[(2, net.baggage["l2"])], nanguard=False)
+        net.cost(method='cce', regterms=[(2, net.baggage["l2"])], clip=True)
 
     print("[+] Setting up optimizer with {}...".format("Lasagne" if lasagneoptimizer else "Antipasti"))
     if optimizer == 'momsgd':
