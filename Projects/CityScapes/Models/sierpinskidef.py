@@ -255,12 +255,12 @@ def initiate(preinit=None, numinp=None):
 
 
 # VGG initiator module
-def vgginitiate(N=64, parampath=None, trainable=False):
+def vgginitiate(N=64, parampath=None, trainable=False, lr=None):
     # Import
     sys.path.append(os.path.abspath('{}/../'.format(__file__)))
     import vgg16
     # Build
-    start = vgg16.build(parampath=parampath, trainable=trainable)
+    start = vgg16.build(parampath=parampath, trainable=trainable, lr=lr)
     # If N != 64, we're gonna need a module to reduce the number of filtermaps.
     if N != 64:
         launch = trks(cl(512, 8 * N, [3, 3]), cl(768, 12 * N, [5, 5]), cl(384, 6 * N, [7, 7]), cl(192, 3 * N, [9, 9]))
@@ -283,7 +283,7 @@ def residualize(blk):
 
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
-          initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False,
+          initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False, vgglr=None,
           optimizer='momsgd', usewmap=True, savedir=None, inpshape=None, lasagneoptimizer=False):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
@@ -321,7 +321,14 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
         if vggparampath is None:
             print("[-] Using VGG initialization but without pretrained parameters to initialize VGG.")
 
-        init = lambda numinp: vgginitiate(parampath=vggparampath, trainable=vggtrainable, N=N)
+        # Parse VGG learningrate
+        if vgglr is not None:
+            # Assume vgglr is float
+            assert isinstance(vgglr, float)
+            # Wrap as theano shared
+            vgglr = th.shared(value=np.float32(vgglr))
+
+        init = lambda numinp: vgginitiate(parampath=vggparampath, trainable=vggtrainable, N=N, lr=vgglr)
     else:
         raise NotImplementedError
 
@@ -346,6 +353,9 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
     # Set input shape for ghost variables (if required)
     if inpshape is not None:
         net.inpshape = inpshape
+
+    # Add VGG learning rate to baggage to control it externally
+    net.baggage['vgg-learningrate'] = vgglr
 
     net.feedforward()
 
@@ -422,5 +432,5 @@ def error(net):
 
 if __name__ == '__main__':
     nw = build(N=30, depth=4, numinp=3, numout=19, initiation='vgg', termination='gterm', residual=False,
-               lasagneoptimizer=True, optimizer='adam')
+               optimizer='adam', vggtrainable=True, vgglr=0.00001)
     pass

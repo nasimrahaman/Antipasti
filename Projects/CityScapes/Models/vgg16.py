@@ -8,6 +8,9 @@ __doc__ = "Wrap Lasagne VGG-16 in an Antipasti layer."
 # Download pretrained weights from:
 # https://s3.amazonaws.com/lasagne/recipes/pretrained/imagenet/vgg16.pkl
 
+import numpy as np
+import theano as th
+
 from lasagne.layers import InputLayer
 from lasagne.layers import Pool2DLayer as PoolLayer
 from lasagne.layers import Upscale2DLayer as UpscaleLayer
@@ -68,22 +71,25 @@ def build_model(parampath=None):
     return net
 
 
-def wrap(model, trainable=False):
+def wrap(model, trainable=False, lr=None):
     lay = ak.lasagnelayer(model['input'], [model['exit1'], model['exit2'], model['exit3'], model['exit4']])
     # Carry the lasagne model dictionary as baggage
     nu.setbaggage(lay, networkdict=model)
     # Set whether parameters are trainable
     nu.setbaggage(lay.params, trainable=trainable)
+    # Set learningrate
+    if trainable and lr is not None:
+        nu.setbaggage(lay.params, learningrate=lr)
     # Build model from layer (not necessary, but wth)
     apmodel = na.layertrainyard([lay])
     return apmodel
 
 
-def build(parampath=None, trainable=False):
+def build(parampath=None, trainable=False, lr=None):
     # Build lasagne model with parameters
     lasmodel = build_model(parampath=parampath)
     # Wrap lasagne model
-    apmodel = wrap(lasmodel, trainable=trainable)
+    apmodel = wrap(lasmodel, trainable=trainable, lr=lr)
     # Done
     return apmodel
 
