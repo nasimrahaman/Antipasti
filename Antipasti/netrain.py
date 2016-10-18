@@ -486,12 +486,20 @@ def adam(params, cost=None, gradients=None, learningrate=0.0002, beta1=0.9, beta
     # Implementation as in reference paper, nothing spectacular here...
     tm1 = th.shared(np.asarray(iterstart, dtype=th.config.floatX))
     t = tm1 + 1
-    at = learningrate*T.sqrt(1-beta2**t)/(1-beta1**t)
+    at = T.sqrt(1-beta2**t)/(1-beta1**t)
 
     for param, dparam in zip(params, dC):
         # Check if layer is trainable. Skip if not.
         if not netutils.getbaggage(param, 'trainable', True):
             continue
+
+        # Check if learningrate is to be overriden
+        if netutils.getbaggage(param, 'learningrate', False):
+            # Override
+            lr = param.baggage['learningrate']
+        else:
+            # Nothing to override
+            lr = learningrate
 
         paramshape = param.get_value().shape
 
@@ -500,7 +508,7 @@ def adam(params, cost=None, gradients=None, learningrate=0.0002, beta1=0.9, beta
 
         mt = beta1 * mtm1 + (1 - beta1) * dparam
         vt = beta2 * vtm1 + (1 - beta2) * dparam**2
-        u = at * mt/(T.sqrt(vt) + epsilon)
+        u = lr * at * mt/(T.sqrt(vt) + epsilon)
 
         updates.append((mtm1, mt))
         updates.append((vtm1, vt))
@@ -560,6 +568,14 @@ def momsgd(params, cost=None, gradients=None, learningrate=0.01, momentum=0.9, n
         if not netutils.getbaggage(param, 'trainable', True):
             continue
 
+        # Check if learningrate is to be overriden
+        if netutils.getbaggage(param, 'learningrate', False):
+            # Override
+            lr = param.baggage['learningrate']
+        else:
+            # Nothing to override
+            lr = learningrate
+
         # Fetch parameter shape
         paramshape = param.get_value().shape
         # ... and init initial momentum
@@ -569,7 +585,7 @@ def momsgd(params, cost=None, gradients=None, learningrate=0.01, momentum=0.9, n
 
         # Compute new parameters
         if nesterov:
-            newparam = param + momentum * vel - learningrate * dparam
+            newparam = param + momentum * vel - lr * dparam
         else:
             newparam = param + vel
 
