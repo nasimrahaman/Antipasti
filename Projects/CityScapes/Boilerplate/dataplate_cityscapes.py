@@ -44,8 +44,9 @@ def buildpreptrains(prepconfig):
 
     if ffd(prepconfig, 'normalize', False):
         ptXY.append(pk.funczip((pk.cast(),)))
-        if ffd(prepconfig, 'vgg', True):
-            ptXY.append(pk.funczip((pf['normalize'](np.array([73.15835921, 82.90891754, 72.39239876])),)))
+        if ffd(prepconfig, 'vgg-like', True):
+            # Cityscapes mean: [73.15835921, 82.90891754, 72.39239876]
+            ptXY.append(pk.funczip((pf['normalize'](np.array(ffd(prepconfig, 'cityscapes-mean', None))),)))
         else:
             ptXY.append(pk.funczip((pk.im2double(8),)))
             ptXY.append(pk.funczip((pk.normalizebatch(),)))
