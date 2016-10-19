@@ -429,15 +429,15 @@ def error(net):
 
 
 # Compute loss with lasagne
-def loss(net, usewmap=True, framework='antipasti'):
+def loss(net, usewmap=True, eps=0.001, framework='antipasti'):
     print("[+] Setting up objective with {}".format(framework))
     # Compute loss with both frameworks
     if framework == 'lasagne':
         assert usewmap
         import lasagne as las
 
-        ist = net.y.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0)
-        soll = net.yt.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0)
+        ist = T.clip(net.y.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0), eps, 1-eps)
+        soll = T.clip(net.yt.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0), eps, 1-eps)
         wmap = net.baggage['wmap'].flatten()
 
         Lv = las.objectives.categorical_crossentropy(ist, soll).mean()
