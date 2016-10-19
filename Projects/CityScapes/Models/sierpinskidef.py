@@ -284,7 +284,7 @@ def residualize(blk):
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
           initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False, vgglr=None,
-          optimizer='momsgd', usewmap=True, savedir=None, inpshape=None, lasagneoptimizer=False):
+          optimizer='momsgd', usewmap=True, savedir=None, inpshape=None, lasagneoptimizer=False, lasagneobj=False):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -360,7 +360,7 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
     net.feedforward()
 
     net = prep(net, parampath=parampath, usewmap=usewmap, savedir=savedir, optimizer=optimizer,
-               lasagneoptimizer=lasagneoptimizer)
+               lasagneoptimizer=lasagneoptimizer, lasagneobj=lasagneobj)
 
     return net
 
@@ -382,14 +382,11 @@ def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None, la
 
     net.baggage["learningrate"] = th.shared(value=np.float32(0.0002))
     net.baggage["l2"] = th.shared(value=np.float32(0.00001))
+    net.baggage["wmap"] = T.tensor4()
 
     # Set up weight maps if required
     print("[+] Setting up objective...")
-    if usewmap:
-        net.baggage["wmap"] = T.tensor4()
-        net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, net.baggage["l2"])], clip=True)
-    else:
-        net.cost(method='cce', regterms=[(2, net.baggage["l2"])], clip=True)
+    loss(net, usewmap=usewmap, framework=('lasagne' if lasagneobj else 'antipasti'))
 
     print("[+] Setting up optimizer with {}...".format("Lasagne" if lasagneoptimizer else "Antipasti"))
     if optimizer == 'momsgd':
@@ -430,7 +427,38 @@ def error(net):
     net.E = E
     return net
 
+
+# Compute loss with lasagne
+def loss(net, usewmap=True, framework='antipasti'):
+    print("[+] Setting up objective with {}".format(framework))
+    # Compute loss with both frameworks
+    if framework == 'lasagne':
+        assert usewmap
+        import lasagne as las
+
+        ist = net.y.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0)
+        soll = net.yt.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0)
+        wmap = net.baggage['wmap'].flatten()
+
+        Lv = las.objectives.categorical_crossentropy(ist, soll).mean()
+        L = las.objectives.aggregate(Lv, wmap)
+        C = L + nt.lp(net.params, regterms=[(2, net.baggage['l2'])])
+        dC = T.grad(C, wrt=net.params)
+
+        net.L = L
+        net.C = C
+        net.dC = dC
+
+        return net
+
+    elif framework == 'antipasti':
+        if usewmap:
+            net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, net.baggage["l2"])], clip=True)
+        else:
+            net.cost(method='cce', regterms=[(2, net.baggage["l2"])], clip=True)
+
+
 if __name__ == '__main__':
     nw = build(N=30, depth=4, numinp=3, numout=19, initiation='vgg', termination='gterm', residual=False,
-               optimizer='adam', vggtrainable=True, vgglr=0.00001)
+               optimizer='adam', vggtrainable=True, vgglr=0.00001, lasagneobj=True)
     pass
