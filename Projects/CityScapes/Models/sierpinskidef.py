@@ -284,7 +284,8 @@ def residualize(blk):
 # Build network from multiple blocks
 def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, finalactivation='softmax',
           initiation='legacy', termination='legacy', residual=False, vggparampath=None, vggtrainable=False, vgglr=None,
-          optimizer='momsgd', usewmap=True, savedir=None, inpshape=None, lasagneoptimizer=False, lasagneobj=False):
+          optimizer='momsgd', usewmap=True, savedir=None, inpshape=None, lasagneoptimizer=False, lasagneobj=False,
+          losslevels=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
@@ -360,13 +361,14 @@ def build(N=30, depth=5, transfer=None, parampath=None, numinp=3, numout=3, fina
     net.feedforward()
 
     net = prep(net, parampath=parampath, usewmap=usewmap, savedir=savedir, optimizer=optimizer,
-               lasagneoptimizer=lasagneoptimizer, lasagneobj=lasagneobj)
+               lasagneoptimizer=lasagneoptimizer, lasagneobj=lasagneobj, losslevels=losslevels)
 
     return net
 
 
 # Prepare network
-def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None, lasagneoptimizer=False, lasagneobj=False):
+def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None, lasagneoptimizer=False, lasagneobj=False,
+         losslevels=None):
 
     if lasagneoptimizer or lasagneobj:
         import lasagne as las
@@ -386,7 +388,7 @@ def prep(net, parampath=None, optimizer='momsgd', usewmap=True, savedir=None, la
 
     # Set up weight maps if required
     print("[+] Setting up objective...")
-    loss(net, usewmap=usewmap, framework=('lasagne' if lasagneobj else 'antipasti'))
+    loss(net, usewmap=usewmap, framework=('lasagne' if lasagneobj else 'antipasti'), coalesce=losslevels)
 
     print("[+] Setting up optimizer with {}...".format("Lasagne" if lasagneoptimizer else "Antipasti"))
     if optimizer == 'momsgd':
@@ -429,22 +431,36 @@ def error(net):
 
 
 # Compute loss with lasagne
-def loss(net, usewmap=True, eps=0.001, framework='antipasti'):
+def loss(net, usewmap=True, eps=0.001, coalesce=None, framework='antipasti'):
     print("[+] Setting up objective with {}".format(framework))
     # Compute loss with both frameworks
     if framework == 'lasagne':
         assert usewmap
         import lasagne as las
 
+        # Flatten to matrices
         ist = T.clip(net.y.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0), eps, 1-eps)
         soll = T.clip(net.yt.dimshuffle(1, 0, 2, 3).flatten(2).dimshuffle(1, 0), eps, 1-eps)
         wmap = net.baggage['wmap'].flatten()
 
-        Lv = las.objectives.categorical_crossentropy(ist, soll).mean()
-        L = las.objectives.aggregate(Lv, wmap)
-        C = L + nt.lp(net.params, regterms=[(2, net.baggage['l2'])])
-        dC = T.grad(C, wrt=net.params)
+        # Compute loss vector and aggregate with weights
+        Lv0 = las.objectives.categorical_crossentropy(ist, soll)
+        L0 = las.objectives.aggregate(Lv0, wmap)
 
+        # Coalesce loss terms if required
+        if coalesce:
+            istv1, sollv1 = coalesceclasses(ist, soll, coalesce)
+            Lv1 = las.objectives.categorical_crossentropy(istv1, sollv1)
+            L1 = las.objectives.aggregate(Lv1, wmap)
+            L = L0 + L1
+        else:
+            L = L0
+
+        # Add L2
+        C = L + nt.lp(net.params, regterms=[(2, net.baggage['l2'])])
+        # Compute gradients
+        dC = T.grad(C, wrt=net.params)
+        # Assign to network
         net.L = L
         net.C = C
         net.dC = dC
@@ -456,6 +472,30 @@ def loss(net, usewmap=True, eps=0.001, framework='antipasti'):
             net.cost(method='cce', wmap=net.baggage['wmap'], regterms=[(2, net.baggage["l2"])], clip=True)
         else:
             net.cost(method='cce', regterms=[(2, net.baggage["l2"])], clip=True)
+
+
+def coalesceclasses(ist, soll, how):
+    assert how
+    # ist and soll are flattened vectors.
+    gists, gsolls = [], []
+
+    for group in how:
+        # Slice
+        gist = ist[:, group]
+        gsoll = soll[:, group]
+        # Sum
+        gist = gist.sum(axis=1)
+        gsoll = T.clip(gsoll.sum(axis=1), 0., 1.)
+
+        # Append
+        gists.append(gist)
+        gsolls.append(gsoll)
+
+    # Concatenate to a single tensor
+    gists = T.concatenate(gists, axis=1)
+    gsolls = T.concatenate(gsolls, axis=1)
+
+    return gists, gsolls
 
 
 if __name__ == '__main__':
