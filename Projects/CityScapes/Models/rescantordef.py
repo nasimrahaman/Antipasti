@@ -23,10 +23,10 @@ from prepper import prep
 # ---- Lasagne
 # Convlayer with ELU
 lcl = lambda incoming, numout, kersize: ll.Conv2DLayer(incoming, num_filters=numout, filter_size=kersize,
-                                                       nonlinearity=nl.elu)
+                                                       nonlinearity=nl.elu, pad='half')
 
 lcll = lambda incoming, numout, kersize: ll.Conv2DLayer(incoming, num_filters=numout, filter_size=kersize,
-                                                        nonlinearity=nl.linear)
+                                                        nonlinearity=nl.linear, pad='half')
 
 # Strided pool layer
 lspl = lambda incoming: ll.Pool2DLayer(incoming, pool_size=3, stride=2, pad=(1, 1))
