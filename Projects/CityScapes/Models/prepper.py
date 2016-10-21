@@ -86,7 +86,10 @@ def loss(net, usewmap=True, eps=0.001, coalesce=None, framework='antipasti'):
 
         # Compute loss vector and aggregate with weights
         Lv0 = las.objectives.categorical_crossentropy(ist, soll)
-        L0 = las.objectives.aggregate(Lv0, wmap)
+        if usewmap:
+            L0 = las.objectives.aggregate(Lv0, wmap)
+        else:
+            L0 = Lv0.mean()
 
         # Coalesce loss terms if required
         if coalesce:

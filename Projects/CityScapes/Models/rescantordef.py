@@ -213,9 +213,16 @@ def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, usew
 
     print("[+] Building Cantor Network of depth {} and base width {} with 3 inputs and 19 outputs.".format(depth, N))
 
+    if vggtrainable:
+        assert vgglr is not None
+        print("[+] VGG Initiator will be fine tuned with a learningrate {}.".format(vgglr))
+
+    # Wrap vgglr in a theano shared variable (if it's a float)
+    vgglr = th.shared(value=np.float32(vgglr)) if vgglr is not None else None
+
     # Initiator
     init = lambda numinp: vgginitiate(N, parampath=vggparampath, trainable=vggtrainable,
-                                      lr=(th.shared(value=np.float32(vgglr)) if vgglr is not None else vgglr))
+                                      lr=vgglr)
     # Terminator (bam!)
     term = gterminate
 
@@ -225,7 +232,7 @@ def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, usew
           block(N, pos='stop') + term(numout, finalactivation)
 
     # Add VGG learning rate to baggage to control it externally
-    net.baggage['vgg-learningrate'] = th.shared(np.float32(vgglr))
+    net.baggage['vgg-learningrate'] = vgglr
 
     net.feedforward()
 
