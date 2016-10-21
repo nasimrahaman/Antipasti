@@ -29,7 +29,7 @@ lcll = lambda incoming, numout, kersize: ll.Conv2DLayer(incoming, num_filters=nu
                                                         nonlinearity=nl.linear)
 
 # Strided pool layer
-lspl = lambda incoming: ll.Pool2DLayer(incoming, ds=(3, 3), stride=(2, 2), pad=(1, 1))
+lspl = lambda incoming: ll.Pool2DLayer(incoming, pool_size=3, stride=2, pad=(1, 1))
 
 # Upsample Layer
 lusl = lambda incoming: ll.Upscale2DLayer(incoming, scale_factor=2)
@@ -78,6 +78,8 @@ drl = lambda p=0.5: nk.noiselayer(noisetype='binomial', p=p)
 
 # Residual Cantor Block.
 def block(N, incomings=None, pos='mid', wrap=True):
+    # Check if block is wrappable
+    wrappable = incomings is None
 
     # Check if incomings given. If not, make input layer
     if incomings is None:
@@ -96,9 +98,9 @@ def block(N, incomings=None, pos='mid', wrap=True):
 
     # Stage 0, pre-residual add.
     s0l3 = lcl(inl3, 8 * N, 3)
-    s0l2 = lcl(inl2, 12 * N, 5)
-    s0l1 = lcl(inl1, 6 * N, 7)
-    s0l0 = lcl(inl0, 3 * N, 9)
+    s0l2 = lcl(inl2, 4 * N, 5)
+    s0l1 = lcl(inl1, 2 * N, 7)
+    s0l0 = lcl(inl0, 1 * N, 9)
     # Stage 1, post-residual add.
     if pos == 'start':
         s0l3r = s0l3
@@ -110,42 +112,42 @@ def block(N, incomings=None, pos='mid', wrap=True):
         s0l1r = ladl(inl1r, s0l1)
 
     # Stage 1
-    s1l3 = lcl(lmerl(s0l3r, s0l2), 8 * N, 3)
+    s1l3 = lcl(lmerl(s0l3r, lspl(s0l2)), 8 * N, 3)
 
     # Stage 2
     s2l3 = lcl(s1l3, 8 * N, 3)
     s2l3r = ladl(s0l3r, s2l3)
-    s2l2 = lcl(lmerl(s1l3, s0l2r, s0l1), 4 * N, 5)
+    s2l2 = lcl(lmerl(lusl(s1l3), s0l2r, lspl(s0l1)), 4 * N, 5)
 
     # Stage 3
-    s3l3 = lcl(lmerl(s2l3r, s2l2), 8 * N, 3)
+    s3l3 = lcl(lmerl(s2l3r, lspl(s2l2)), 8 * N, 3)
 
     # Stage 4
     s4l3 = lcl(s3l3, 8 * N, 3)
     s4l3r = ladl(s2l3r, s4l3)
-    s4l2 = lcl(s2l2, 4 * N, 3)
+    s4l2 = lcl(lmerl(lusl(s3l3), s2l2), 4 * N, 3)
     s4l2r = ladl(s0l2r, s4l2)
-    s4l1 = lcl(lmerl(s2l2, s0l1r, s0l0), 2 * N, 7)
+    s4l1 = lcl(lmerl(lusl(s2l2), s0l1r, lspl(s0l0)), 2 * N, 7)
 
     # Stage 5
-    s5l3 = lcl(lmerl(s4l3r, s4l2), 8 * N, 3)
+    s5l3 = lcl(lmerl(s4l3r, lspl(s4l2)), 8 * N, 3)
 
     # Stage 6
     s6l3 = lcl(s5l3, 8 * N, 3)
     s6l3r = ladl(s4l3r, s6l3)
-    s6l2 = lcl(lmerl(s5l3, s4l2r, s4l1), 4 * N, 5)
+    s6l2 = lcl(lmerl(lusl(s5l3), s4l2r, lspl(s4l1)), 4 * N, 5)
 
     # Stage 7
-    s7l3 = lcl(lmerl(s6l3r, s6l2), 8 * N, 3)
+    s7l3 = lcl(lmerl(s6l3r, lspl(s6l2)), 8 * N, 3)
 
     # Stage t (terminal)
     stl3r = s6l3r
     stl3 = s7l3
     stl2r = s4l2r
-    stl2 = lmerl(s7l3, s6l2)
+    stl2 = lmerl(lusl(s7l3), s6l2)
     stl1r = s0l1r
-    stl1 = lmerl(s6l2, s4l1)
-    stl0 = lmerl(s4l1, s0l0)
+    stl1 = lmerl(lusl(s6l2), s4l1)
+    stl0 = lmerl(lusl(s4l1), s0l0)
 
     # Done.
     if pos == 'stop':
@@ -156,7 +158,7 @@ def block(N, incomings=None, pos='mid', wrap=True):
     # Wrap up
     if wrap:
         # Can only wrap if incomings is None (i.e. init with input layers)
-        assert incomings is None
+        assert wrappable
         layer = ak.lasagnelayer(incomings, outgoings)
         return layer
     else:
@@ -231,3 +233,6 @@ def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, usew
                lasagneoptimizer=False, lasagneobj=True)
 
     return net
+
+if __name__ == '__main__':
+    net = build()
