@@ -225,7 +225,7 @@ def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, usew
           block(N, pos='stop') + term(numout, finalactivation)
 
     # Add VGG learning rate to baggage to control it externally
-    net.baggage['vgg-learningrate'] = vgglr
+    net.baggage['vgg-learningrate'] = th.shared(np.float32(vgglr))
 
     net.feedforward()
 
