@@ -8,6 +8,7 @@ import theano.tensor as T
 import numpy as np
 
 import copy
+from collections import OrderedDict
 
 from Antipasti.netkit import layer
 import Antipasti.netutils as netutils
@@ -901,6 +902,21 @@ class lasagnelayer(layer):
         params = netutils.sym2num(params)
         # Have Lasagne apply all parameters
         las.layers.set_all_param_values(self.outputlayers, params)
+
+    def extractparams(self):
+        # Fetch parameters from Lasagne and transfer any baggage if available
+        # Start by getting a list of layers
+        layers = las.layers.get_all_layers(self.outputlayers)
+        # Get 'params' attribute from all layers
+        paramsntags = OrderedDict([(param, tag) for layer in layers for param, tag in layer.params.items()])
+        # Transfer baggage from lasagne (saved as tags) over to Antipasti.
+        for param, tags in paramsntags:
+            if tags:
+                for tag in tags:
+                    netutils.setbaggage(param, baggage={tag: True})
+        # Extract params and return
+        params = paramsntags.keys()
+        return params
 
     def nameparams(self):
         for param in self.params:
