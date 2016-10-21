@@ -76,7 +76,6 @@ def loss(net, usewmap=True, eps=0.001, coalesce=None, framework='antipasti'):
     print("[+] Setting up objective with {}".format(framework))
     # Compute loss with both frameworks
     if framework == 'lasagne':
-        assert usewmap
         import lasagne as las
 
         # Flatten to matrices
