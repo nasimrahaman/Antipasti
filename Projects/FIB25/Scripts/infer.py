@@ -786,7 +786,7 @@ def parsejson(path):
 
 def parseyaml(path):
     with open(path) as ymlfile:
-        arr = np.array(yaml.load(ymlfile))
+        arr = yaml.load(ymlfile)
     return arr
 
 
@@ -843,7 +843,7 @@ def autoqueue(supervisorconfig):
 
         if supervisorconfig.get('bbox-selection-yml', False):
             bboxselection = parseyaml(supervisorconfig['bbox-selection-yml'])
-            enbboxes = enbboxes[bboxselection]
+            enbboxes = [(bbid, bbox) for bbid, bbox in enbboxes if bbid in bboxselection]
 
         if supervisorconfig['bbox-rev']:
             enbboxes.reverse()
