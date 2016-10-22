@@ -835,6 +835,10 @@ def autoqueue(supervisorconfig):
         # Whether to reverse bboxes
         enbboxes = enbboxes[bboxes_start:bboxes_stop]
 
+        if supervisorconfig.get('bbox-selection-json', False):
+            bboxselection = parsejson(supervisorconfig['bbox-selection-json'])
+            enbboxes = enbboxes[bboxselection]
+
         if supervisorconfig['bbox-rev']:
             enbboxes.reverse()
 
