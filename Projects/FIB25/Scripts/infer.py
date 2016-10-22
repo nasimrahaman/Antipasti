@@ -842,7 +842,7 @@ def autoqueue(supervisorconfig):
         enbboxes = enbboxes[bboxes_start:bboxes_stop]
 
         if supervisorconfig.get('bbox-selection-yml', False):
-            bboxselection = parseyaml(supervisorconfig['bbox-selection-json'])
+            bboxselection = parseyaml(supervisorconfig['bbox-selection-yml'])
             enbboxes = enbboxes[bboxselection]
 
         if supervisorconfig['bbox-rev']:
