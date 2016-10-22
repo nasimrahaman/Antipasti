@@ -608,6 +608,31 @@ def shpcmp(shape1, shape2):
     return shpeq
 
 
+# Fetch item from baggage. Be careful about the default, esp. when obj.baggage[key] = default.
+def getbaggage(obj, key, default=None):
+    # Return default if obj has no baggage
+    if not hasattr(obj, 'baggage'):
+        return default
+    else:
+        if key in obj.baggage.keys():
+            return obj.baggage[key]
+        else:
+            return default
+
+
+# Set baggage.
+def setbaggage(objs, **baggage):
+    baggage = baggage['baggage'] if 'baggage' in baggage.keys() else baggage
+    for obj in pyk.obj2list(objs, ndarray2list=False):
+        # Check if obj has a baggage.
+        if hasattr(obj, 'baggage'):
+            # Update baggage with new entries
+            obj.baggage.update(baggage)
+        else:
+            # Make new baggage
+            obj.baggage = baggage
+
+
 # Function to eval and test a (sub-)model for correctness (at forward pass)
 def testmodel(model, inpshape, verbose=True, outshape=None):
     """

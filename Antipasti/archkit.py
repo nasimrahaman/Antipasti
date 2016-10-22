@@ -648,7 +648,8 @@ class addlayer(layer):
             sum([isinstance(ishp, list) for ishp in inpshape]) == self.numinp, "Inpshape must be a list of input " \
                                                                                "shapes of {} layer " \
                                                                                "inputs.".format(self.numinp)
-            assert all([ishp == inpshape[0] for ishp in inpshape]), "All inputs must have the same shape."
+            assert all([netutils.shpcmp(ishp, inpshape[0]) for ishp in inpshape]), \
+                "All inputs must have the same shape."
 
         outshape = inpshape[0]
 
@@ -819,16 +820,13 @@ class functionlayer(layer):
 
 class lasagnelayer(layer):
     """Class to wrap Theano graphs built with Lasagne."""
-    def __init__(self, inputlayers, outputlayers, inpshape=None):
+    def __init__(self, inputlayers, outputlayers):
         """
         :type inputlayers: list
         :param inputlayers: List of Lasagne input layers.
 
         :type outputlayers: list
         :param outputlayers: List of output layers.
-
-        :type inpshape: list
-        :param inpshape: Input shapes.
         """
         # Init superclass
         super(lasagnelayer, self).__init__()
@@ -851,6 +849,12 @@ class lasagnelayer(layer):
         self.allowsequences = parsey['allowsequences']
         self.issequence = parsey['issequence']
         self.numinp = parsey['numinp']
+
+        # Read parameters
+        self._params = las.layers.get_all_params(self.outputlayers)
+        self._cparams = [netutils.getshared(like=param, value=1.) for param in self.params]
+        # Name parameters right
+        self.nameparams()
 
         # Shape inference
         self.inpshape = parsey['inpshape']
@@ -891,3 +895,15 @@ class lasagnelayer(layer):
         # In case out is a list:
         self.y = pyk.delist(out)
         return self.y
+
+    def applylasagneparams(self, params=None):
+        # Convert to numerical
+        params = netutils.sym2num(params)
+        # Have Lasagne apply all parameters
+        las.layers.set_all_param_values(self.outputlayers, params)
+
+    def nameparams(self):
+        for param in self.params:
+            param.name += '-laslayerparam:{}'.format(id(self))
+        for cparam in self.cparams:
+            cparam.name = ('cparam' if cparam.name is None else cparam.name) + '-laslayercparam:{}'.format(id(self))

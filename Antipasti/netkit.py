@@ -1311,7 +1311,8 @@ class convlayer(layer):
         if checkinput:
             assert inpshape[(1 if self.inpdim == 4 else 2)] == self.fmapsin or \
                    inpshape[(1 if self.inpdim == 4 else 2)] is None, "Number of input channels must match that of " \
-                                                                     "the layer."
+                                                                     "the layer. Expected {}, got {}.".\
+                format(self.fmapsin, inpshape[(1 if self.inpdim == 4 else 2)])
 
         if self.inpdim == 4:
             # Compute y and x from input
