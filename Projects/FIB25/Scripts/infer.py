@@ -829,7 +829,7 @@ def autoqueue(supervisorconfig):
         # Open H5 file
         rawdatafile = h5.File(supervisorconfig['datapath'])
         # Read dataset 'data' (but don't load to RAM)
-        dataset = rawdatafile['data']
+        dataset = rawdatafile[supervisorconfig.get('h5path', 'data')]
 
         # Read bounding box coordinates
         bboxes = parsejson(supervisorconfig['subvol-bboxes'])
