@@ -19,6 +19,16 @@ def prepfunctions():
 
         return _func
 
+    def labeltrimmer():
+        """Get rid of the final map in the label tensor."""
+        def _func(batches):
+            rawbatch, labelbatch = batches
+            # Trim labelbatch
+            newlabelbatch = labelbatch[:, 0:-1, ...]
+            return rawbatch, newlabelbatch
+
+        return _func
+
     def patchmaker(patchsize):
         """Extract patches from image and batch."""
         def _func(batches):

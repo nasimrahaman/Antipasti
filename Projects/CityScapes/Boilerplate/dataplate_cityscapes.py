@@ -32,6 +32,9 @@ def buildpreptrains(prepconfig):
 
     if ffd(prepconfig, 'makewmap', False):
         ptXY.append(pf['wmapmaker']())
+    else:
+        # Get rid of the 20th label ('void')
+        ptXY.append(pf['labeltrimmer']())
 
     if ffd(prepconfig, 'patchmaker', False):
         ptXY.append(pf['patchmaker'](**prepconfig['patchmaker']))
