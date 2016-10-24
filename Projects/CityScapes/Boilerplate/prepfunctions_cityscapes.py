@@ -14,7 +14,7 @@ def prepfunctions():
             rawbatch, labelbatch = batches
             # Make wmap from labelbatch
             newlabelbatch = labelbatch[:, 0:-1, ...]
-            wmap = labelbatch[:, -1:, ...]
+            wmap = 1. - labelbatch[:, -1:, ...]
             return rawbatch, newlabelbatch, wmap
 
         return _func
