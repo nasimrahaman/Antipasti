@@ -17,6 +17,7 @@ from lasagne.layers import Upscale2DLayer as UpscaleLayer
 from lasagne.layers import ConcatLayer
 from lasagne.layers import set_all_param_values
 from lasagne.layers.dnn import Conv2DDNNLayer as ConvLayer
+from lasagne.nonlinearities import elu, rectify
 
 import Antipasti.archkit as ak
 import Antipasti.netutils as nu
@@ -26,37 +27,45 @@ import Antipasti.netarchs as na
 from Antipasti.netdatautils import unpickle
 
 
-def build_model(parampath=None):
+def build_model(parampath=None, activation=None):
+
+    if activation is None or activation == 'relu':
+        activation = rectify
+    elif activation == 'elu':
+        activation = elu
+    else:
+        raise NotImplementedError
+
 
     net = {}
 
     net['input'] = InputLayer((None, 3, None, None))
     net['conv1_1'] = ConvLayer(
-        net['input'], 64, 3, pad=1, flip_filters=False)
+        net['input'], 64, 3, pad=1, flip_filters=False, nonlinearity=activation)
     net['conv1_2'] = ConvLayer(
-        net['conv1_1'], 64, 3, pad=1, flip_filters=False)
+        net['conv1_1'], 64, 3, pad=1, flip_filters=False, nonlinearity=activation)
 
     net['pool1'] = PoolLayer(net['conv1_2'], 2)
     net['conv2_1'] = ConvLayer(
-        net['pool1'], 128, 3, pad=1, flip_filters=False)
+        net['pool1'], 128, 3, pad=1, flip_filters=False, nonlinearity=activation)
     net['conv2_2'] = ConvLayer(
-        net['conv2_1'], 128, 3, pad=1, flip_filters=False)
+        net['conv2_1'], 128, 3, pad=1, flip_filters=False, nonlinearity=activation)
 
     net['pool2'] = PoolLayer(net['conv2_2'], 2)
     net['conv3_1'] = ConvLayer(
-        net['pool2'], 256, 3, pad=1, flip_filters=False)
+        net['pool2'], 256, 3, pad=1, flip_filters=False, nonlinearity=activation)
     net['conv3_2'] = ConvLayer(
-        net['conv3_1'], 256, 3, pad=1, flip_filters=False)
+        net['conv3_1'], 256, 3, pad=1, flip_filters=False, nonlinearity=activation)
     net['conv3_3'] = ConvLayer(
-        net['conv3_2'], 256, 3, pad=1, flip_filters=False)
+        net['conv3_2'], 256, 3, pad=1, flip_filters=False, nonlinearity=activation)
 
     net['pool3'] = PoolLayer(net['conv3_3'], 2)
     net['conv4_1'] = ConvLayer(
-        net['pool3'], 512, 3, pad=1, flip_filters=False)
+        net['pool3'], 512, 3, pad=1, flip_filters=False, nonlinearity=activation)
     net['conv4_2'] = ConvLayer(
-        net['conv4_1'], 512, 3, pad=1, flip_filters=False)
+        net['conv4_1'], 512, 3, pad=1, flip_filters=False, nonlinearity=activation)
     net['conv4_3'] = ConvLayer(
-        net['conv4_2'], 512, 3, pad=1, flip_filters=False)
+        net['conv4_2'], 512, 3, pad=1, flip_filters=False, nonlinearity=activation)
 
     if parampath is not None:
         params = unpickle(parampath)
@@ -85,9 +94,9 @@ def wrap(model, trainable=False, lr=None):
     return apmodel
 
 
-def build(parampath=None, trainable=False, lr=None):
+def build(parampath=None, trainable=False, lr=None, activation=None):
     # Build lasagne model with parameters
-    lasmodel = build_model(parampath=parampath)
+    lasmodel = build_model(parampath=parampath, activation=activation)
     # Wrap lasagne model
     apmodel = wrap(lasmodel, trainable=trainable, lr=lr)
     # Done
