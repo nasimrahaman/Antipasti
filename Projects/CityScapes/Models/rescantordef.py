@@ -44,7 +44,7 @@ lmerl = lambda *incomings: ll.ConcatLayer(incomings)
 linp = lambda fmapsin: ll.InputLayer((None, fmapsin, None, None))
 
 # ---- Antipasti
-initscheme = 'he'
+initscheme = 'xavier'
 
 # Convlayer with ELU
 cl = lambda fmapsin, fmapsout, kersize: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout, kersize=kersize,
