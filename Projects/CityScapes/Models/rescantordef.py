@@ -166,10 +166,10 @@ def block(N, incomings=None, pos='mid', wrap=True):
 
 
 # VGG initiator module
-def vgginitiate(N=64, parampath=None, trainable=False, lr=None):
+def vgginitiate(N=64, parampath=None, trainable=False, lr=None, activation=None):
     import vgg16
     # Build
-    start = vgg16.build(parampath=parampath, trainable=trainable, lr=lr)
+    start = vgg16.build(parampath=parampath, trainable=trainable, lr=lr, activation=activation)
     # If N != 64, we're gonna need a module to reduce the number of filtermaps.
     if N != 64:
         launch = trks(cl(512, 8 * N, [3, 3]), cl(768, 12 * N, [5, 5]), cl(384, 6 * N, [7, 7]), cl(192, 3 * N, [9, 9]))
@@ -204,8 +204,8 @@ def gterminate(numout=19, finalactivation=None, N=30):
     return fuse
 
 
-def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, usewmap=True, finalactivation='softmax',
-          savedir=None, parampath=None):
+def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, vggactivation=None, usewmap=True,
+          finalactivation='softmax', savedir=None, parampath=None):
 
     # Hardcode cityscapes
     numinp = 3
@@ -222,7 +222,7 @@ def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, usew
 
     # Initiator
     init = lambda numinp: vgginitiate(N, parampath=vggparampath, trainable=vggtrainable,
-                                      lr=vgglr)
+                                      lr=vgglr, activation=vggactivation)
     # Terminator (bam!)
     term = gterminate
 
