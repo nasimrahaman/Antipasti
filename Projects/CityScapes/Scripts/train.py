@@ -102,12 +102,35 @@ def run(net, trX, **runconfig):
     return net
 
 
+def plot(net, trX, **plotconfig):
+    # Load params
+    parampath = glob.glob(plotconfig['parampath'])[0]
+
+    print("[+] Loading parameters from {}.".format(parampath))
+    net.load(parampath)
+
+    # Get batches to plot
+    batches = [trX.next() for _ in range(plotconfig['numbatches'])]
+    # Infer on the batches
+    for batchnum, batch in enumerate(batches):
+        bn = batchnum if len(batches) > 1 else ''
+        batchX, batchY = batch[0:2]
+        # Infer
+        ny = net.y.eval({net.x: batchX})
+        # Print
+        vz.printensor2file(ny, savedir=plotconfig['plotdir'], mode='image', nameprefix='PR-{}-'.format(bn))
+        vz.printensor2file(batchX, savedir=plotconfig['plotdir'], mode='image', nameprefix='RW-{}-'.format(bn))
+        vz.printensor2file(batchY, savedir=plotconfig['plotdir'], mode='image', nameprefix='GT-{}-'.format(bn))
+    print("[+] Done.")
+
+
 if __name__ == '__main__':
     import argparse
     import yaml
     import sys
     import imp
     import os
+    import glob
 
     # Parse arguments
     parsey = argparse.ArgumentParser()
