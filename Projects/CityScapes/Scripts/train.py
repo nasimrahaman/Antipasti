@@ -109,6 +109,11 @@ def plot(net, trX, **plotconfig):
     print("[+] Loading parameters from {}.".format(parampath))
     net.load(parampath)
     print("[+] Printing to {}.".format(plotconfig['plotdir']))
+
+    # Get validation feeder from trX
+    if isinstance(trX, dict):
+        trX = trX[plotconfig.get('dataset', 'validation')]
+
     # Get batches to plot
     batches = [trX.next() for _ in range(plotconfig['numbatches'])]
     # Infer on the batches
