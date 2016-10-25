@@ -108,12 +108,14 @@ def plot(net, trX, **plotconfig):
 
     print("[+] Loading parameters from {}.".format(parampath))
     net.load(parampath)
-
+    print("[+] Printing to {}.".format(plotconfig['plotdir']))
     # Get batches to plot
     batches = [trX.next() for _ in range(plotconfig['numbatches'])]
     # Infer on the batches
     for batchnum, batch in enumerate(batches):
         bn = batchnum if len(batches) > 1 else ''
+        print("[+] Inferring on batch {}.".format(batchnum))
+        # Fetch and infer
         batchX, batchY = batch[0:2]
         # Infer
         ny = net.y.eval({net.x: batchX})
@@ -173,7 +175,12 @@ if __name__ == '__main__':
 
     # Run training
     try:
-        run(net, trX, **config['runconfig'])
+        if config.get('mode', 'run') == 'run':
+            run(net, trX, **config['runconfig'])
+        elif config.get('mode') == 'plot':
+            plot(net, trX, **config['plotconfig'])
+        else:
+            raise NotImplementedError
     except Exception as e:
         raise e
     finally:
