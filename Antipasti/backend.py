@@ -392,7 +392,8 @@ class backend(object):
 
         return y
 
-    def __theano__noise(self, inp, noisetype, p=None, n=None, sigma=None, thicken=True, mode=None, srng=None):
+    def __theano__noise(self, inp, noisetype, p=None, n=None, sigma=None, thicken=True, mode=None, srng=None,
+                        channelwise=False, dim=None):
 
         # Local imports
         from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
@@ -424,12 +425,24 @@ class backend(object):
             srng = RandomStreams(seed=srng)
 
         # Make noise kernel
+        # Get kernel shape
+        if not channelwise:
+            noisekernelshape = inp.shape
+        else:
+            # Check if dimensionality is given
+            assert dim is None or dim == 2, "Channelwise noising is only supported for 2D data."
+            noisekernelshape = inp.shape[1:2]
+
         if noisetype == 'normal':
-            noisekernel = T.cast(srng.normal(size=inp.shape, std=sigma), dtype='floatX')
+            noisekernel = T.cast(srng.normal(size=noisekernelshape, std=sigma), dtype='floatX')
         elif noisetype == 'binomial':
-            noisekernel = T.cast(srng.binomial(size=inp.shape, n=n, p=p), dtype='floatX')
+            noisekernel = T.cast(srng.binomial(size=noisekernelshape, n=n, p=p), dtype='floatX')
         else:
             raise NotImplementedError
+
+        # Broadcast if channelwise
+        if channelwise:
+            noisekernel = noisekernel.dimshuffle('x', 0, 'x', 'x')
 
         # Couple with input
         if mode == 'add':
