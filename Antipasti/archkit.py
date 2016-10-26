@@ -8,6 +8,7 @@ import theano.tensor as T
 import numpy as np
 
 import copy
+from collections import OrderedDict
 
 from Antipasti.netkit import layer
 import Antipasti.netutils as netutils
@@ -648,7 +649,8 @@ class addlayer(layer):
             sum([isinstance(ishp, list) for ishp in inpshape]) == self.numinp, "Inpshape must be a list of input " \
                                                                                "shapes of {} layer " \
                                                                                "inputs.".format(self.numinp)
-            assert all([ishp == inpshape[0] for ishp in inpshape]), "All inputs must have the same shape."
+            assert all([netutils.shpcmp(ishp, inpshape[0]) for ishp in inpshape]), \
+                "All inputs must have the same shape."
 
         outshape = inpshape[0]
 
@@ -901,8 +903,23 @@ class lasagnelayer(layer):
         # Have Lasagne apply all parameters
         las.layers.set_all_param_values(self.outputlayers, params)
 
+    def extractparams(self):
+        # Fetch parameters from Lasagne and transfer any baggage if available
+        # Start by getting a list of layers
+        layers = las.layers.get_all_layers(self.outputlayers)
+        # Get 'params' attribute from all layers
+        paramsntags = OrderedDict([(param, tag) for layer in layers for param, tag in layer.params.items()])
+        # Transfer baggage from lasagne (saved as tags) over to Antipasti.
+        for param, tags in paramsntags:
+            if tags:
+                for tag in tags:
+                    netutils.setbaggage(param, baggage={tag: True})
+        # Extract params and return
+        params = paramsntags.keys()
+        return params
+
     def nameparams(self):
         for param in self.params:
             param.name += '-laslayerparam:{}'.format(id(self))
         for cparam in self.cparams:
-            cparam.name += '-laslayercparam:{}'.format(id(self))
+            cparam.name = ('cparam' if cparam.name is None else cparam.name) + '-laslayercparam:{}'.format(id(self))
