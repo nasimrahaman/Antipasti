@@ -17,7 +17,7 @@ def prep(net, optimizer='adam', initlearningrate=0.0002, savedir=None, parampath
     net.baggage['l2'] = th.shared(np.float32(0.0001))
     net.baggage['wt'] = th.shared(np.float32(0.5))
     # Compute loss
-    net.cost(method=wcbce, wt=net.baggage['wt'])
+    net.cost(method=wcbce, wt=net.baggage['wt'], regterms=[(2, net.baggage['l2'])])
     # Set learningrate
     net.baggage['learningrate'] = th.shared(np.float32(initlearningrate))
     # Make optimizer
