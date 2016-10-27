@@ -23,8 +23,7 @@ def run(net, trX, **runconfig):
     # Configure relay
     if ffd(runconfig, 'relayfile') is not None:
         relay = tk.relay({'learningrate': net.baggage['learningrate'],
-                          'l2': net.baggage['l2'],
-                          'vgg-learningrate': net.baggage['vgg-learningrate']},
+                          'l2': net.baggage['l2']},
                          runconfig['relayfile'])
         print("[+] Listening to control file at {}.".format(runconfig['relayfile']))
     else:
@@ -43,19 +42,19 @@ def run(net, trX, **runconfig):
         # the network output must be available
         extraoutputs = {'y': net.y}
 
-        def outputprinter(**kwargs):
-            if kwargs['iternum'] % runconfig['live-print']['every'] == 0:
+        def outputprinter(**iterstat):
+            if iterstat['iternum'] % runconfig['live-print']['every'] == 0:
                 # Get input and output
-                ny = kwargs['y']
-                bX = kwargs['funin'][0]
-                bY = kwargs['funin'][1]
+                ny = iterstat['y']
+                bX = iterstat['funin'][0]
+                bY = iterstat['funin'][1]
                 # Print
                 vz.printensor2file(ny, savedir=runconfig['live-print']['printdir'], mode='image',
-                                   nameprefix='PR-'.format(kwargs['iternum']))
+                                   nameprefix='PR-'.format(iterstat['iternum']))
                 vz.printensor2file(bX, savedir=runconfig['live-print']['printdir'], mode='image',
-                                   nameprefix='RW-'.format(kwargs['iternum']))
+                                   nameprefix='RW-'.format(iterstat['iternum']))
                 vz.printensor2file(bY, savedir=runconfig['live-print']['printdir'], mode='image',
-                                   nameprefix='GT-'.format(kwargs['iternum']))
+                                   nameprefix='GT-'.format(iterstat['iternum']))
             else:
                 return
 
@@ -81,10 +80,8 @@ def run(net, trX, **runconfig):
     # Bind textlogger to printer
     cbs.callbacklist[0].textlogger = log
 
-    if runconfig['use-wmaps']:
-        extrarguments = {net.baggage['wmap']: -1}
-    else:
-        extrarguments = {}
+    # No weight maps
+    extrarguments = {}
 
     # Fit
     if isinstance(trX, dict):

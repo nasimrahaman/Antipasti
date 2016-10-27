@@ -10,7 +10,8 @@ def prep(net, optimizer='adam', initlearningrate=0.0002, savedir=None, parampath
     # Load parameters
     if parampath is not None:
         net.load(parampath)
-
+    # Set l2 coefficient
+    net.baggage['l2'] = th.shared(np.float32(0.0001))
     # Compute loss
     net.cost(method='bce')
     # Set learningrate
