@@ -32,6 +32,9 @@ lcl = lambda incoming, numout, kersize: ll.Conv2DLayer(incoming, num_filters=num
 lcll = lambda incoming, numout, kersize: ll.Conv2DLayer(incoming, num_filters=numout, filter_size=kersize,
                                                         nonlinearity=nl.linear, pad='same')
 
+lcls = lambda incoming, numout, kersize: ll.Conv2DLayer(incoming, num_filters=numout, filter_size=kersize,
+                                                        nonlinearity=nl.sigmoid, pad='same')
+
 # Dilated convolution layer with ELU and 'same' border mode (but odd kernel size)
 lcld = lambda incoming, numout, kersize, dilation: \
     ll.PadLayer(ll.DilatedConv2DLayer(incoming, num_filters=numout, filter_size=kersize, dilation=dilation,
@@ -231,7 +234,7 @@ def initiate(numinp=3, N=30, incoming=None, wrap=True):
     # Branches
     il2b0 = lcld(lcl(il1, 4 * basebranchnumout, 5), 4 * basebranchnumout, 5, 4)
     il2b1 = lcld(lcl(il1, 4 * basebranchnumout, 5), 4 * basebranchnumout, 5, 2)
-    il2b2 = lcl(lcl(il1, 4 * basebranchnumout, 3), 4 * basebranchnumout, 3)
+    il2b2 = lcl(lcl(il1, 4 * basebranchnumout, 5), 4 * basebranchnumout, 3)
     il2bx = lmerl(il2b0, il2b1, il2b2)
     il2 = lspl(il2bx)
 
@@ -261,75 +264,101 @@ def initiate(numinp=3, N=30, incoming=None, wrap=True):
 
 
 # Build a terminator module
-def terminate(numout=3, N=30, incomings=None, wrap=True, finalactivation='sigmoid'):
+def terminate(numout=3, N=30, incomings=None, wrap=True):
+
+    wrappable = incomings is None
+
     if incomings is None:
         incomings = [linp(8 * N), linp(12 * N), linp(6 * N), linp(3 * N)]
 
     # Unpack incomings to individual inputs
     inl3, inl2, inl1, inl0 = incomings
 
-    # TODO
+    Nby3 = N/3
+    Nby2 = N/2
 
+    # Level 3
+    # Branches
+    tl3b0 = lcld(lcl(inl3, 4 * N, 5), 4 * Nby3, 3, 2)
+    tl3b1 = lcld(lcl(inl3, 4 * N, 3), 4 * Nby3, 3, 2)
+    tl3b2 = lcl(lcl(inl3, 4 * N, 3), 4 * Nby3, 3)
+    tl3bx = lmerl(tl3b0, tl3b1, tl3b2)
+    tl3 = lusl(tl3bx)
 
-# Gradually terminate the cantor chain
-def gterminate(numout=19, finalactivation=None, N=30):
+    # Level 2
+    # Branches
+    tl2b0 = lcld(lcl(lmerl(tl3, inl2), 8 * N, 5), 8 * Nby3, 5, 4)
+    tl2b1 = lcld(lcl(lmerl(tl3, inl2), 8 * N, 5), 8 * Nby3, 5, 2)
+    tl2b2 = lcl(lcl(lmerl(tl3, inl2), 8 * N, 3), 8 * Nby3, 3)
+    tl2bx = lmerl(tl2b0, tl2b1, tl2b2)
+    tl2 = lusl(tl2bx)
 
-    # Parse final layer
-    if finalactivation == 'softmax' or finalactivation is None:
-        fl = cll(numout, numout, [1, 1]) + sml()
-    elif finalactivation == 'linear':
-        fl = cll(numout, numout, [1, 1])
-    elif finalactivation == 'sigmoid':
-        fl = cls(numout, numout, [1, 1])
+    # Level 1
+    # Branch
+    tl1b0 = lcld(lcl(lmerl(tl2, inl1), 7 * N, 7), 7 * Nby3, 7, 6)
+    tl1b1 = lcld(lcl(lmerl(tl2, inl1), 7 * N, 5), 7 * Nby3, 5, 4)
+    tl1b2 = lcld(lcl(lmerl(tl2, inl1), 7 * N, 3), 7 * Nby3, 3, 2)
+    tl1bx = lmerl(tl1b0, tl1b1, tl1b2)
+    tl1 = lusl(tl1bx)
+
+    # Level 0
+    # Branches
+    tl0b0 = lcl(lcl(lmerl(tl1, inl0), 5 * N, 9), 5 * Nby3, 3)
+    tl0b1 = lcl(lcl(lmerl(tl1, inl0), 5 * N, 5), 5 * Nby3, 5)
+    tl0b2 = lcl(lcl(lmerl(tl1, inl0), 5 * N, 3), 5 * Nby3, 3)
+    tl0bx = lmerl(tl0b0, tl0b1, tl0b2)
+    tl0 = tl0bx
+
+    # Final LayerS
+    # Module A
+    flsAb0 = lcl(tl0, 3 * Nby2, 1)
+    flsAb1 = lcl(tl0, 3 * Nby2, 3)
+    flsA = lmerl(flsAb0, flsAb1)
+
+    # Module B
+    flsBb0 = lcl(lcl(flsA, 2 * N, 3), 2 * Nby2, 1)
+    flsBb1 = lcl(lcl(flsA, 2 * N, 1), 2 * Nby2, 3)
+    flsB = lmerl(flsBb0, flsBb1)
+
+    # Module C
+    flsCb0 = lcl(lcl(flsB, 1 * N, 3), 1 * Nby2, 1)
+    flsCb1 = lcl(lcl(flsB, 1 * N, 1), 1 * Nby2, 3)
+    flsC = lmerl(flsCb0, flsCb1)
+
+    # Module D
+    flsD = lcls(flsC, numout, 1)
+
+    if wrap:
+        assert wrappable
+        lay = ak.lasagnelayer(inputlayers=incomings, outputlayers=flsD)
+        return lay
     else:
-        raise NotImplementedError
-
-    fuse = trks(cl(8*N, 4*N, [3, 3]) + iusl(), cl(12*N, 6*N, [3, 3]), cl(6*N, 3*N, [5, 5]), cl(3*N, 2*N, [5, 5])) + \
-           trks(merl(2), idl(), idl()) + \
-           trks(cl(10*N, 5*N, [3, 3]) + cl(5*N, 3*N, [3, 3]) + iusl(), cl(3*N, 3*N, [3, 3]), cl(2*N, N, [5, 5])) + \
-           trks(merl(2), idl()) + \
-           trks(cl(6*N, 4*N, [3, 3]) + cl(4*N, 2*N, [3, 3]) + iusl(), cl(N, N, [3, 3])) + \
-           merl(2) + \
-           cl(3*N, 2*N, [3, 3]) + cl(2*N, N, [3, 3]) + \
-           drl() + cl(N, N, [1, 1]) + drl() + cl(N, N, [1, 1]) + drl() + cl(N, numout, [1, 1]) + fl
-
-    return fuse
+        return flsD
 
 
-def build(N=30, depth=5, vggparampath=None, vggtrainable=False, vgglr=None, vggactivation=None, usewmap=True,
-          finalactivation='softmax', savedir=None, parampath=None):
+def build(N=30, depth=5, numinp=3, numout=3, optimizer='adam', savedir=None, parampath=None):
 
-    # Roadblock
-    raise NotImplementedError("This has not been implemented yet.")
-
-    print("[+] Building Cantor Network of depth {} and base width {} with 3 inputs and 19 outputs.".format(depth, N))
-
-    if vggtrainable:
-        assert vgglr is not None
-        print("[+] VGG Initiator will be fine tuned with a learningrate {}.".format(vgglr))
-
-    # Wrap vgglr in a theano shared variable (if it's a float)
-    vgglr = th.shared(value=np.float32(vgglr)) if vgglr is not None else None
+    print("[+] Building Cantor Network of depth {} and base width {} "
+          "with {} inputs and {} outputs.".format(depth, N, numinp, numout))
 
     # Initiator
     init = lambda numinp: initiate(numinp=numinp, N=N)
 
     # Terminator (bam!)
-    term = terminate
+    term = lambda numout: terminate(numout=numout, N=N)
 
     # Build network
     net = init(numinp) + block(N, pos='start') + \
           reduce(lambda x, y: x + y, [block(N, pos='mid') for _ in range(depth - 2)]) + \
-          block(N, pos='stop') + term(numout=numout, finalactivation=finalactivation)
+          block(N, pos='stop') + term(numout=numout)
 
-    # Add VGG learning rate to baggage to control it externally
-    net.baggage['vgg-learningrate'] = vgglr
-
+    # Feedforward
     net.feedforward()
 
-    # TODO
-    net = prep(net)
+    # Loss and optimizer
+    net = prep(net, optimizer=optimizer, savedir=savedir, parampath=parampath)
 
+    # Done.
     return net
 
 if __name__ == '__main__':
