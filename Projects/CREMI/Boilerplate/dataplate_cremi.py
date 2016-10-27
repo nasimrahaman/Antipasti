@@ -1,7 +1,8 @@
 # Add to path
 import sys
+import os
+sys.path.append(os.path.abspath('{}/../'.format(__file__)))
 
-sys.path.append('/export/home/nrahaman/Python/Antipasti/Projects/ActorCritic/Boilerplate')
 import prepfunctions_cremi
 
 import Antipasti.trainkit as tk
