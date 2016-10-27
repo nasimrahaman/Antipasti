@@ -37,5 +37,5 @@ def broadcastparams(net):
             # Figure out which axes to broadcast
             axes = [axisnum for axisnum, axis in enumerate(net.updates[n][0].broadcastable) if axis]
             # Broadcast
-            net.updates[n][1] = T.addbroadcast(net.updates[n][1], *axes)
+            net.updates[n] = (net.updates[n][0], T.addbroadcast(net.updates[n][1], *axes))
 
