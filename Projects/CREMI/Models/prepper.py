@@ -4,6 +4,8 @@ import numpy as np
 import theano as th
 import theano.tensor as T
 
+import Antipasti.netrain as nt
+
 
 # Prepare network
 def prep(net, optimizer='adam', initlearningrate=0.0002, savedir=None, parampath=None):
@@ -13,8 +15,9 @@ def prep(net, optimizer='adam', initlearningrate=0.0002, savedir=None, parampath
         net.load(parampath)
     # Set l2 coefficient
     net.baggage['l2'] = th.shared(np.float32(0.0001))
+    net.baggage['wt'] = th.shared(np.float32(0.5))
     # Compute loss
-    net.cost(method='bce')
+    net.cost(method=wcbce, wt=net.baggage['wt'])
     # Set learningrate
     net.baggage['learningrate'] = th.shared(np.float32(initlearningrate))
     # Make optimizer
@@ -39,3 +42,11 @@ def broadcastparams(net):
             # Broadcast
             net.updates[n] = (net.updates[n][0], T.addbroadcast(net.updates[n][1], *axes))
 
+
+def wcbce(ist, soll, wt):
+    # Weight controlled binary cross entropy
+    ist, soll = nt.prep(ist, soll, clip=True)
+    # Compute weighted loss
+    L = -T.mean(T.sum(wt * soll * T.log(ist) + (1. - wt) * (1. - soll) * T.log(1. - ist), axis=1))
+    # Done
+    return L

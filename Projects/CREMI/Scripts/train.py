@@ -23,7 +23,8 @@ def run(net, trX, **runconfig):
     # Configure relay
     if ffd(runconfig, 'relayfile') is not None:
         relay = tk.relay({'learningrate': net.baggage['learningrate'],
-                          'l2': net.baggage['l2']},
+                          'l2': net.baggage['l2'],
+                          'wt': net.baggage['wt']},
                          runconfig['relayfile'])
         print("[+] Listening to control file at {}.".format(runconfig['relayfile']))
     else:
