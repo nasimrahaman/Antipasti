@@ -1,3 +1,8 @@
+# Add to path
+import sys
+import os
+sys.path.append(os.path.abspath('{}/../'.format(__file__)))
+
 __doc__ = "Preprocessing functions for CREMI."
 
 import numpy as np
@@ -11,6 +16,8 @@ import Antipasti.prepkit as pk
 import Antipasti.pykit as pyk
 
 import itertools as it
+
+import tools
 
 
 def prepfunctions():
@@ -57,6 +64,13 @@ def prepfunctions():
 
     # Function to apply exp-euclidean distance transform
     def disttransform(gain):
+        # gain could be a file variable
+        if isinstance(gain, dict):
+            ymlfile, key = gain['ymlfile'], gain['dict']
+            gain = tools.FileVariable(ymlfile, key)
+        else:
+            # Make a dummy object with a get_value attribute ('cause im lazy af)
+            gain = type('NotFileVariable', (object,), {'get_value': lambda self: gain})()
 
         def fun(batch):
             # Invert batch
@@ -65,7 +79,7 @@ def prepfunctions():
             bshape = batch.shape
             batch = batch.reshape((bshape[0]*bshape[1], bshape[2], bshape[3]))
             # Distance transform by channel
-            transbatch = np.array([np.exp(-gain * distance_transform_edt(img)) for img in batch])
+            transbatch = np.array([np.exp(-gain.get_value() * distance_transform_edt(img)) for img in batch])
             # Reshape batch and return
             return transbatch.reshape(bshape)
 
