@@ -352,6 +352,7 @@ def build(N=30, depth=5, numinp=3, numout=3, channeldropout=False, optimizer='ad
 
     print("[+] Building Cantor Network of depth {} and base width {} "
           "with {} inputs and {} outputs.".format(depth, N, numinp, numout))
+    print("[+] Channel Dropout is {}.".format('ON' if channeldropout else 'OFF'))
 
     # Initiator
     init = lambda numinp: initiate(numinp=numinp, N=N)
