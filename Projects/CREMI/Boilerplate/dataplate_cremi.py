@@ -120,7 +120,7 @@ def fetchfeeder(dataconf, givens=None):
         gt = ndk.cargo(data=datasets[dsetname]['gt'],
                        axistags='kij', nhoodsize=dataconf['nhoodsize'], stride=dataconf['stride'],
                        ds=dataconf['ds'], batchsize=dataconf['batchsize'], window=['x', 'x', 'x'],
-                       preptrain=preptrains['Y'])
+                       preptrain=preptrains['Y'], shuffleiterator=dataconf.get('shuffle', False))
         # Build raw data feeder
         rd = gt.clonecrate(data=datasets[dsetname]['raw'], syncgenerators=True)
         rd.preptrain = preptrains['X']
