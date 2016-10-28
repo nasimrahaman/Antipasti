@@ -21,7 +21,7 @@ import Antipasti.netrain as nt
 import lasagne.layers as ll
 import lasagne.nonlinearities as nl
 
-from prepper import prep
+from utils import prep, ChannelDropout
 
 # ---- Lasagne
 # Convlayer with ELU
@@ -55,6 +55,12 @@ lmerl = lambda *incomings: ll.ConcatLayer(incomings)
 
 # Input layer
 linp = lambda fmapsin: ll.InputLayer((None, fmapsin, None, None))
+
+# Channel Dropout Layer
+lcdrl = lambda incoming, keep=0.5: ChannelDropout(incoming, keep=keep)
+
+# Identity layer (with args and kwargs)
+lidl = lambda incoming, *args, **kwargs: ll.NonlinearityLayer(incoming, nonlinearity=nl.identity)
 
 # ---- Antipasti
 initscheme = 'xavier'
@@ -109,7 +115,7 @@ def lmsm3(incoming, numout, kersize):
 
 
 # Residual Cantor Block.
-def block(N, incomings=None, pos='mid', wrap=True):
+def block(N, channeldropout=False, incomings=None, pos='mid', wrap=True):
     # Check if block is wrappable
     wrappable = incomings is None
 
@@ -125,6 +131,12 @@ def block(N, incomings=None, pos='mid', wrap=True):
         inl3, inl2, inl1, inl0 = incomings
     else:
         inl3r, inl3, inl2r, inl2, inl1r, inl1, inl0 = incomings
+
+    # Check if channel dropout is to be applied
+    if channeldropout:
+        ldrp = lcdrl
+    else:
+        ldrp = lidl
 
     # s: stage (along depth), l: level (resolution). Let the brainfuck begin.
 
@@ -147,7 +159,7 @@ def block(N, incomings=None, pos='mid', wrap=True):
     s1l3 = lmsm3(lmerl(s0l3r, lspl(s0l2)), 8 * N, 3)
 
     # Stage 2
-    s2l3 = lmsm3(s1l3, 8 * N, 3)
+    s2l3 = lmsm3(ldrp(s1l3, 0.7), 8 * N, 3)
     s2l3r = ladl(s0l3r, s2l3)
     s2l2 = lmsm3(lmerl(lusl(s1l3), s0l2r, lspl(s0l1)), 4 * N, 5)
 
@@ -155,9 +167,9 @@ def block(N, incomings=None, pos='mid', wrap=True):
     s3l3 = lmsm3(lmerl(s2l3r, lspl(s2l2)), 8 * N, 3)
 
     # Stage 4
-    s4l3 = lmsm3(s3l3, 8 * N, 3)
+    s4l3 = lmsm3(ldrp(s3l3, 0.7), 8 * N, 3)
     s4l3r = ladl(s2l3r, s4l3)
-    s4l2 = lmsm3(lmerl(lusl(s3l3), s2l2), 4 * N, 3)
+    s4l2 = lmsm3(lmerl(lusl(s3l3), ldrp(s2l2, 0.8)), 4 * N, 3)
     s4l2r = ladl(s0l2r, s4l2)
     s4l1 = lmsm3(lmerl(lusl(s2l2), s0l1r, lspl(s0l0)), 2 * N, 7)
 
@@ -165,7 +177,7 @@ def block(N, incomings=None, pos='mid', wrap=True):
     s5l3 = lmsm3(lmerl(s4l3r, lspl(s4l2)), 8 * N, 3)
 
     # Stage 6
-    s6l3 = lmsm3(s5l3, 8 * N, 3)
+    s6l3 = lmsm3(ldrp(s5l3, 0.7), 8 * N, 3)
     s6l3r = ladl(s4l3r, s6l3)
     s6l2 = lmsm3(lmerl(lusl(s5l3), s4l2r, lspl(s4l1)), 4 * N, 5)
 
@@ -174,11 +186,11 @@ def block(N, incomings=None, pos='mid', wrap=True):
 
     # Stage t (terminal)
     stl3r = s6l3r
-    stl3 = s7l3
+    stl3 = ldrp(s7l3, 0.7)
     stl2r = s4l2r
-    stl2 = lmerl(lusl(s7l3), s6l2)
+    stl2 = lmerl(lusl(s7l3), ldrp(s6l2, 0.8))
     stl1r = s0l1r
-    stl1 = lmerl(lusl(s6l2), s4l1)
+    stl1 = lmerl(lusl(s6l2), ldrp(s4l1, 0.9))
     stl0 = lmerl(lusl(s4l1), s0l0)
 
     # Done.
@@ -336,7 +348,7 @@ def terminate(numout=3, N=30, incomings=None, wrap=True):
         return flsD
 
 
-def build(N=30, depth=5, numinp=3, numout=3, optimizer='adam', savedir=None, parampath=None):
+def build(N=30, depth=5, numinp=3, numout=3, channeldropout=False, optimizer='adam', savedir=None, parampath=None):
 
     print("[+] Building Cantor Network of depth {} and base width {} "
           "with {} inputs and {} outputs.".format(depth, N, numinp, numout))
@@ -348,9 +360,9 @@ def build(N=30, depth=5, numinp=3, numout=3, optimizer='adam', savedir=None, par
     term = lambda numout: terminate(numout=numout, N=N)
 
     # Build network
-    net = init(numinp) + block(N, pos='start') + \
-          reduce(lambda x, y: x + y, [block(N, pos='mid') for _ in range(depth - 2)]) + \
-          block(N, pos='stop') + term(numout=numout)
+    net = init(numinp) + block(N, pos='start', channeldropout=channeldropout) + \
+          reduce(lambda x, y: x + y, [block(N, pos='mid', channeldropout=channeldropout) for _ in range(depth - 2)]) + \
+          block(N, pos='stop', channeldropout=channeldropout) + term(numout=numout)
 
     # Feedforward
     net.feedforward()

@@ -6,6 +6,12 @@ import theano.tensor as T
 
 import Antipasti.netrain as nt
 
+import lasagne as las
+import Antipasti.backend
+
+# Spin up the backend
+A = Antipasti.backend.backend()
+
 
 # Prepare network
 def prep(net, optimizer='adam', initlearningrate=0.0002, savedir=None, parampath=None):
@@ -50,3 +56,15 @@ def wcbce(ist, soll, wt):
     L = -T.mean(T.sum(wt * soll * T.log(ist) + (1. - wt) * (1. - soll) * T.log(1. - ist), axis=1))
     # Done
     return L
+
+
+class ChannelDropout(las.layers.Layer):
+    def __init__(self, incoming, keep=0.5, **kwargs):
+        # Init superclass
+        super(ChannelDropout, self).__init__(incoming=incoming, **kwargs)
+        # p is not a parameter (it's a hyperparameter)
+        self.p = keep
+
+    def get_output_for(self, input, **kwargs):
+        output = A.noise(input, noisetype='binomial', p=self.p, n=1, mode='mul', channelwise=True)
+        return output
