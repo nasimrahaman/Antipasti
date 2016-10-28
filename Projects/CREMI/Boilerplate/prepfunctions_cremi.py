@@ -66,7 +66,7 @@ def prepfunctions():
     def disttransform(gain):
         # gain could be a file variable
         if isinstance(gain, dict):
-            ymlfile, key = gain['ymlfile'], gain['dict']
+            ymlfile, key = gain['ymlfile'], gain['key']
             gain = tools.FileVariable(ymlfile, key)
         else:
             # Make a dummy object with a get_value attribute ('cause im lazy af)
