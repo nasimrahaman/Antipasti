@@ -197,7 +197,16 @@ def slidingwindowslices(shape, nhoodsize, stride=1, ds=1, window=None, ignorebor
                for startmin, startmax, datalen, nhoodsiz, st, windowspec, dsample in zip(startmins, startmaxs, shape,
                                                                                 nhoodsize, stride, window, ds)]
 
-    return it.product(*nslices)
+    iterator = it.product(*nslices)
+
+    if not shuffle:
+        return iterator
+    else:
+        # There really is no other good way...
+        iteratorlist = list(iterator)
+        random.shuffle(iteratorlist)
+        iterator = iter(iteratorlist)
+        return iterator
 
 
 def pickle(obj, filename):
