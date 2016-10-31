@@ -730,7 +730,7 @@ class model(object):
 
                 # Build a dictionary of keyword arguments to send to the monitors
                 iterstat = {"batchnum": batchnum, "params": params, "iternum": numiter, "model": self,
-                            "epoch": epoch}
+                            "epoch": epoch, 'funin': funin}
                 iterstat.update(res)
 
                 # Run all callbacks
@@ -1533,7 +1533,17 @@ class layertrainyard(model):
         if inp is not None:
             # Inp is given. Set the x of the first layer in modern
             self.x = inp
-            self.trainyard[0].x = inp
+            inplist = pyk.obj2list(inp)
+            # self.trainyard[0].x = inp
+            inplistcursor = 0
+            for coach in pyk.obj2list(self.trainyard[0]):
+                # Fetch from the list of inputs
+                coachinp = inplist[inplistcursor:inplistcursor + coach.numinp]
+                # Increment cursor
+                inplistcursor += coach.numinp
+                # Delist and set input
+                coach.x = pyk.delist(coachinp)
+
         else:
             # Assume model input has been set. Fetch from the list of inputs the correct number of inputs for every
             # coach and set as input

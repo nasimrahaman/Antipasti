@@ -939,7 +939,7 @@ class convlayer(layer):
     # Constructor
     def __init__(self, fmapsin, fmapsout, kersize, stride=None, padding=None, dilation=None, activation=netools.linear(),
                  alpha=None, makedecoder=False, zerobias=False, tiedbiases=True, convmode='same', allowsequences=True,
-                 inpshape=None, W=None, b=None, bp=None, Wc=None, bc=None, bpc=None, Wgc=None, bgc=None, bpgc=None,
+                 inpshape=None, W=None, b=None, bp=None, Wc=None, bc=None, Wgc=None, bgc=None,
                  allowgradmask=False):
 
         """
@@ -1100,7 +1100,7 @@ class convlayer(layer):
             self.dilation = [1, ] * (self.dim + (0 if not self.issequence else 1))
         else:
             if self.dim == 2:
-                dilation = [dilation, ] * (self.dim + (0 if not self.issequence else 1)) if isinstance(dilation, int) \
+                dilation = ([dilation, ] * (self.dim + (0 if not self.issequence else 1))) if isinstance(dilation, int) \
                     else dilation
                 assert len(dilation) == len(self.kersize), "Dilation and kersize must have the same length."
                 assert self.stride == [1, 1], "Stride must be [1, 1] for dilated convolutions."
@@ -1311,7 +1311,8 @@ class convlayer(layer):
         if checkinput:
             assert inpshape[(1 if self.inpdim == 4 else 2)] == self.fmapsin or \
                    inpshape[(1 if self.inpdim == 4 else 2)] is None, "Number of input channels must match that of " \
-                                                                     "the layer."
+                                                                     "the layer. Expected {}, got {}.".\
+                format(self.fmapsin, inpshape[(1 if self.inpdim == 4 else 2)])
 
         if self.inpdim == 4:
             # Compute y and x from input
@@ -2931,6 +2932,6 @@ class denoiselayer(layer):
             assert [ishp0 == ishp1 if None not in [ishp0, ishp1] else True
                     for ishp0, ishp1 in zip(inpshape[0], inpshape[1])]
 
-        outshape = inpshape
+        outshape = inpshape[0]
 
         return outshape

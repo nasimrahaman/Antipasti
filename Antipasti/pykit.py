@@ -89,6 +89,13 @@ def list2listoflists(l):
         return [l]
 
 
+# Function to convert a list of tuples to a list of list
+def listoftuples2listoflists(l):
+    assert islistoflists(l), "Input must be a list of tuples or a list of lists."
+    l = [list(elem) for elem in l]
+    return l
+
+
 # Function to chain lists (concatenate lists in a list of lists)
 def chain(l):
     return list(it.chain.from_iterable(l))
