@@ -154,6 +154,8 @@ def fit(actor, critic, trX, fitconfig, tools=None):
         [-] handle control variables
     """
 
+    print("[+] Setting up training loop...")
+
     fitconfig = path2dict(fitconfig)
 
     # Defaults
@@ -177,6 +179,8 @@ def fit(actor, critic, trX, fitconfig, tools=None):
     # Initialize an experience buffer to hold batches from the actor
     edb = deque(maxlen=fitconfig['edb-maxlen'])
 
+    print("[+] Ready to train.")
+
     # Epoch loop
     while True:
         # Break if required
@@ -184,6 +188,8 @@ def fit(actor, critic, trX, fitconfig, tools=None):
             break
         if iterstat['iternum'] >= fitconfig['maxiter']:
             break
+
+        print("Epoch {} of {}:".format(iterstat['epochnum'], fitconfig['numepochs']))
 
         # Restart data generator
         trX.restartgenerator()
@@ -230,7 +236,7 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch['y'], k=critbatch['k'])
 
                 # Evaluate critic performance
-                criticout['critic-performance'] = (-criticout['k'] * criticout['critic-y']).mean()
+                criticout['critic-performance'] = (criticout['k'] * criticout['critic-y']).mean()
 
                 # Increment iteration counter
                 iterstat['critic-iternum'] += 1
@@ -238,11 +244,12 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 # Skip training
                 criticout = {}
 
-            if trainactor and iterstat['iternum'] % trainactor == 0:
+            if trainactor and iterstat['iternum'] % trainactor == 0 and len(actordatadeck) != 0:
                 # Fetch batch for actor
                 raw = fetch(actordatadeck)
                 # Train actor
                 actorout = actor.classifiertrainer(x=raw['x'])
+                actorout.update({'actor-x': raw['x']})
                 # Increment iteration counter
                 iterstat['actor-iternum'] += 1
                 # Add to experience database for future replay
@@ -303,50 +310,10 @@ def run(runconfig):
     # Load feeder
     trX = fetchfeeder(runconfig)
 
-    tools = {}
-    # Set up relays
-    if 'relayfile' in runconfig.keys():
-        print("[+] Using relay file from {}.".format(runconfig['relayfile']))
-        tools['relay'] = tk.relay(switches={'actor-training-signal': th.shared(value=np.float32(1)),
-                                            'critic-training-signal': th.shared(value=np.float32(1)),
-                                            'actor-learningrate': actor.baggage['learningrate'],
-                                            'critic-learningrate': critic.baggage['learningrate']},
-                                  ymlfile=runconfig['relayfile'])
-    else:
-        print("[-] Not listening to relays.")
-
-    # Set up printer
-    if 'verbose' in runconfig.keys() and runconfig['verbose']:
-        tools['printer'] = tk.printer(monitors=[tk.monitorfactory('Actor-Cost', 'actor-C', float),
-                                                tk.monitorfactory('Actor-Loss', 'actor-L', float),
-                                                tk.monitorfactory('Critic-Cost', 'critic-C', float),
-                                                tk.monitorfactory('Critic-Loss', 'critic-L', float),
-                                                tk.monitorfactory('Critic-Performance', 'critic-performance', float)])
-
-    # Set up logs
-    if 'logfile' in runconfig.keys():
-        print("[+] Logging to {}.".format(runconfig['logfile']))
-        tools['log'] = tk.logger(runconfig['logfile'])
-        # Bind logger to printer if possible
-        if 'printer' in tools.keys():
-            tools['printer'].textlogger = tools['log']
-    else:
-        print("[-] Not logging.")
-
-    # Set up live plots
-    if runconfig['live-plots']:
-        print("[+] Live plots ON.")
-        tools['plotter'] = tk.plotter(linenames=['actor-L', 'critic-L'], colors=['navy', 'firebrick'])
-    else:
-        print("[+] Live plots OFF.")
-
-    # Gather all callbacks to a single object (tools != callbacks)
-    callbacklist = []
-    if 'printer' in tools.keys():
-        callbacklist.append(tools['printer'])
-    if 'plotter' in tools.keys():
-        callbacklist.append(tools['plotter'])
-    tools['callbacks'] = tk.callbacks(callbacklist)
+    setupconfig = runconfig
+    setupconfig.update({'actor-learningrate': actor.baggage['learningrate'],
+                        'critic-learningrate': critic.baggage['learningrate']})
+    tools = setuptools(runconfig)
 
     print("[+] Fitting...")
     # Fit models
@@ -358,6 +325,79 @@ def run(runconfig):
 
     # Return
     return actor, critic
+
+
+def setuptools(setupconfig):
+    tools = {}
+    # Set up relays
+    if 'relayfile' in setupconfig.keys():
+        print("[+] Using relay file from {}.".format(setupconfig['relayfile']))
+        tools['relay'] = tk.relay(switches={'actor-training-signal': th.shared(value=np.float32(1)),
+                                            'critic-training-signal': th.shared(value=np.float32(1)),
+                                            'actor-learningrate': setupconfig['actor-learningrate'],
+                                            'critic-learningrate': setupconfig['critic-learningrate']},
+                                  ymlfile=setupconfig['relayfile'])
+    else:
+        print("[-] Not listening to relays.")
+
+    # Set up printer
+    if 'verbose' in setupconfig.keys() and setupconfig['verbose']:
+        tools['printer'] = tk.printer(monitors=[tk.monitorfactory('Actor-Cost', 'actor-C', float),
+                                                tk.monitorfactory('Actor-Loss', 'actor-L', float),
+                                                tk.monitorfactory('Critic-Cost', 'critic-C', float),
+                                                tk.monitorfactory('Critic-Loss', 'critic-L', float),
+                                                tk.monitorfactory('Critic-Performance', 'critic-performance', float)])
+
+    # Set up logs
+    if 'logfile' in setupconfig.keys():
+        print("[+] Logging to {}.".format(setupconfig['logfile']))
+        tools['log'] = tk.logger(setupconfig['logfile'])
+        # Bind logger to printer if possible
+        if 'printer' in tools.keys():
+            tools['printer'].textlogger = tools['log']
+    else:
+        print("[-] Not logging.")
+
+    # Set up live plots
+    if setupconfig['live-plots']:
+        print("[+] Live plots ON.")
+        tools['plotter'] = tk.plotter(linenames=['actor-L', 'critic-L'], colors=['navy', 'firebrick'])
+    else:
+        print("[+] Live plots OFF.")
+
+    if setupconfig.get('live-print') is not None:
+
+        print("[+] Network outputs will be printed "
+              "to {} every {} iteratons.".format(setupconfig['live-print']['printdir'],
+                                                 setupconfig['live-print']['every']))
+
+        def outputprinter(**iterstat):
+            if iterstat['iternum'] % setupconfig['live-print']['every'] == 0:
+
+                if 'actor-y' in iterstat.keys():
+                    # Print
+                    vz.printensor2file(iterstat['actor-y'], savedir=setupconfig['live-print']['printdir'], mode='image',
+                                       nameprefix='AY-'.format(iterstat['iternum']))
+
+                if 'actor-x' in iterstat.keys():
+                    vz.printensor2file(iterstat['actor-x'], savedir=setupconfig['live-print']['printdir'], mode='image',
+                                       nameprefix='AX-'.format(iterstat['iternum']))
+            else:
+                return
+
+        tools['live-printer'] = tk.caller(outputprinter)
+
+    # Gather all callbacks to a single object (tools != callbacks)
+    callbacklist = []
+    if 'printer' in tools.keys():
+        callbacklist.append(tools['printer'])
+    if 'plotter' in tools.keys():
+        callbacklist.append(tools['plotter'])
+    if 'live-printer' in tools.keys():
+        callbacklist.append(tools['live-printer'])
+    tools['callbacks'] = tk.callbacks(callbacklist)
+
+    return tools
 
 
 if __name__ == '__main__':
@@ -416,6 +456,7 @@ if __name__ == '__main__':
     import Antipasti.netrain as nt
     import Antipasti.backend as A
     import Antipasti.trainkit as tk
+    import Antipasti.vizkit as vz
 
     # Go!
     run(config)
