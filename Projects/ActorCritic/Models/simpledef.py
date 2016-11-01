@@ -70,9 +70,18 @@ trks = lambda *layers: na.layertrainyard([list(layers)])
 
 lty = lambda ty: na.layertrainyard(ty)
 
-def build(numinp=3, numout=3, parampath=None):
+
+def build(numinp=3, numout=3, parampath=None, finalactivation='sigmoid'):
+
+    if finalactivation == 'sigmoid':
+        fl = cls
+    elif finalactivation == 'linear':
+        fl = cll
+    else:
+        raise NotImplementedError
+
     # Build simple as fuck network
-    net = cl(numinp, 10, [3, 3]) + cl(10, numout, [3, 3])
+    net = scl(numinp, 32, [5, 5]) + cl(32, 32, [3, 3]) + usl() + fl(32, numout, [3, 3])
     # Load parameters
     if parampath is not None:
         net.load(parampath)
