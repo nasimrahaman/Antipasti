@@ -85,15 +85,21 @@ def configure(modelconfig):
     critic.feedforward(inp=T.concatenate((actor.y, actor.x), axis=1))
 
     # Set up critic's loss
-    # Make a relu function for the critic's loss
-    relu = lambda x: T.switch(x > 0., x, 0.)
+    # TODO: The most general formulation of the critic loss involves a elu-like function (i.e. ReLU dressed as ELU).
+    # The equivalent of the parameter alpha in ELU is redefined as the nash energy.
+
+    relu = lambda x: (lambda x_, nash=np.float32(0.): T.switch((x_ + nash) > 0., (x_ + nash), 0.) - nash)\
+        (x, np.float32(modelconfig['nashenergy']))
+
     # Make k variable (for the critic). It has the shape (bs,), and k = 1 implies the prediction is legit
     # (i. e. ground truth) whereas k = -1 implies the prediction is that of the network.
     k = critic.baggage['k'] = T.vector('k')
     # Make loss. Note that critic.y.shape = (bs, 1, nr, nc). Convert to (bs, nr * nc) and sum along the second axis
     # before multiplying with k to save computation. The resulting vector of shape (bs,) (after having applied RELU)
     # and is averaged to obtain a scalar loss. The nash energy gives the loss at ground state.
-    critic.L = relu(k * (critic.y.flatten(ndim=2).mean(axis=1) + np.float32(modelconfig['nashenergy']))).mean()
+    critic.L = relu(k * (critic.y.flatten(ndim=2).mean(axis=1))).mean()
+    # Add critic's loss vector variable to it's baggage for debugging
+    critic.baggage['Lv'] = relu(k * (critic.y.flatten(ndim=2).mean(axis=1) + np.float32(modelconfig['nashenergy'])))
     # Add regularizer (L2 on the last layer is somewhat intentional. A more direct approach would be to penalize the
     # output norm, but we'll save that for another day.)
     critic.C = critic.L + nt.lp(critic.params, regterms=[(2, 0.0005)])
@@ -342,7 +348,8 @@ def setuptools(setupconfig):
 
     # Set up printer
     if 'verbose' in setupconfig.keys() and setupconfig['verbose']:
-        tools['printer'] = tk.printer(monitors=[tk.monitorfactory('Actor-Cost', 'actor-C', float),
+        tools['printer'] = tk.printer(monitors=[tk.monitorfactory('Iteration', 'iternum', int),
+                                                tk.monitorfactory('Actor-Cost', 'actor-C', float),
                                                 tk.monitorfactory('Actor-Loss', 'actor-L', float),
                                                 tk.monitorfactory('Critic-Cost', 'critic-C', float),
                                                 tk.monitorfactory('Critic-Loss', 'critic-L', float),
