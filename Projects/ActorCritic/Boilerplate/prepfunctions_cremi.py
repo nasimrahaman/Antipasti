@@ -370,4 +370,20 @@ def prepfunctions():
             raise NotImplementedError
         pass
 
+    def trimY2center():
+        def _func(batches):
+            # Convert to list and fetch
+            batches = list(batches)
+            batchY = batches[1]
+
+            assert batchY.shape[1] == 3
+
+            # Trim and write to batches
+            nbatchY = batchY[:, 1:2, ...]
+            batches[1] = nbatchY
+
+            return batches
+
+        return _func
+
     return vars()

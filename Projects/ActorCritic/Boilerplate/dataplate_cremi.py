@@ -64,6 +64,10 @@ def buildpreptrains(prepconfig):
     if prepconfig['random-flip-z']:
         ptXY.append(pf['randomflipz']())
 
+    # Trim to center
+    if prepconfig.get('center-out', False):
+        ptXY.append(pf['trimY2center']())
+
     return {'X': ptX, 'Y': ptY, 'XY': ptXY}
 
 
