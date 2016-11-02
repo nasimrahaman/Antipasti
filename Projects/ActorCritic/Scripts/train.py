@@ -428,6 +428,9 @@ if __name__ == '__main__':
     if not isfatchicken:
         args = parsey.parse_args()
     else:
+        # Set up the interpreter to use the right Antipasti
+        sys.path.append('/export/home/nrahaman/Python/Repositories/Antipasti/')
+        # Hard-coded parameters
         configset = '/home/nrahaman/LittleHeronHDD2/Neuro/ConvNet-Backups/ActorCritic/ICv1-ICv1-CREMI-0/' \
                     'Configurations/simplerunconfig.yml'
         device = 'gpu0'
