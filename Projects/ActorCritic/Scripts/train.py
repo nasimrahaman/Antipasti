@@ -85,10 +85,11 @@ def configure(modelconfig):
     critic.feedforward(inp=T.concatenate((actor.y, actor.x), axis=1))
 
     # Set up critic's loss
-    # TODO: The most general formulation of the critic loss involves a elu-like function (i.e. ReLU dressed as ELU).
-    # The equivalent of the parameter alpha in ELU is redefined as the nash energy.
-
-    relu = lambda x: (lambda x_, nash=np.float32(0.): T.switch((x_ + nash) > 0., (x_ + nash), 0.) - nash)\
+    # The most general formulation of the critic loss involves a elu-like function (i.e. ReLU dressed as ELU).
+    # The equivalent of the parameter alpha in ELU is redefined as the nash energy. Also note that for gradient based
+    # optimization, the '- nash' term (in the function definition below) is not strictly necessary.
+    # Define hard elu:
+    hardelu = lambda x: (lambda x_, nash=np.float32(0.): T.switch((x_ + nash) > 0., (x_ + nash), 0.) - nash)\
         (x, np.float32(modelconfig['nashenergy']))
 
     # Make k variable (for the critic). It has the shape (bs,), and k = 1 implies the prediction is legit
@@ -97,9 +98,9 @@ def configure(modelconfig):
     # Make loss. Note that critic.y.shape = (bs, 1, nr, nc). Convert to (bs, nr * nc) and sum along the second axis
     # before multiplying with k to save computation. The resulting vector of shape (bs,) (after having applied RELU)
     # and is averaged to obtain a scalar loss. The nash energy gives the loss at ground state.
-    critic.L = relu(k * (critic.y.flatten(ndim=2).mean(axis=1))).mean()
+    critic.L = hardelu(k * (critic.y.flatten(ndim=2).mean(axis=1))).mean()
     # Add critic's loss vector variable to it's baggage for debugging
-    critic.baggage['Lv'] = relu(k * (critic.y.flatten(ndim=2).mean(axis=1) + np.float32(modelconfig['nashenergy'])))
+    critic.baggage['Lv'] = hardelu(k * (critic.y.flatten(ndim=2).mean(axis=1)))
     # Add regularizer (L2 on the last layer is somewhat intentional. A more direct approach would be to penalize the
     # output norm, but we'll save that for another day.)
     critic.C = critic.L + nt.lp(critic.params, regterms=[(2, 0.0005)])
