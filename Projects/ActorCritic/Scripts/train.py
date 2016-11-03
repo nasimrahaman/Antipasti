@@ -108,9 +108,12 @@ def configure(modelconfig):
     critic.dC = T.grad(critic.C, wrt=critic.params)
     # Done.
 
-    # Set up actor's loss. Actor's job is to pull down critic's output, which implies the critic outputs large
+    # Set up actor's loss.
+    # Actor's job is to pull down critic's output, which implies the critic outputs large
     # values ('energies') for network predictions and small values for ground truth images.
     # This is simply the mean of the critic's output. Backprop takes care of the rest.
+    # TODO additionally, add a second, 'supervised' term to stabilize actor training when the critic goofs up.
+    # This (presumably) gives the critic a chance to get its shit together without completely screwing up the actor.
     actor.L = critic.y.mean()
     actor.C = actor.L + nt.lp(actor.params, regterms=[(2, 0.0005)])
     # Compute gradients
@@ -142,7 +145,7 @@ def configure(modelconfig):
     # as its input.
     critic.classifiertrainer = A.function(inputs=OrderedDict([('xx', actor.x), ('xy', actor.y), ('k', k)]),
                                           outputs={'critic-C': critic.C, 'critic-L': critic.L,
-                                                   'critic-y': critic.y.flatten(ndim=2).mean(axis=1), 'k': k},
+                                                   'critic-y': critic.y, 'k': k},
                                           updates=critic.updates, allow_input_downcast=True, on_unused_input='warn')
 
     # Backup directories for actor and critic
@@ -203,94 +206,124 @@ def fit(actor, critic, trX, fitconfig, tools=None):
 
         # Primary loop
         while True:
-            # Break if required
-            if iterstat['iternum'] >= fitconfig['maxiter']:
-                break
-
-            # Get batch
             try:
-                batchX, batchY = trX.next()
-                # Append to criticdatadeck
-                # Note: k is a vector of shape (bs,). While numpy broadcasting magic can handle
-                # broadcasting a (1,) vector against (bs,), Theano can't.
-                criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.ones(shape=(batchX.shape[0],))})
-                actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.ones(shape=(batchX.shape[0],))})
-            except StopIteration:
-                # Iterator might have stopped, but there could be batches left in the criticdatadeck
-                if (len(criticdatadeck) + len(actordatadeck)) == 0:
-                    # Ok, so the datadecks are out. Time to say goodbye.
+                # Break if required
+                if iterstat['iternum'] >= fitconfig['maxiter']:
                     break
+
+                # Get batch
+                try:
+                    batchX, batchY = trX.next()
+                    # Append to criticdatadeck
+                    # Note: k is a vector of shape (bs,). While numpy broadcasting magic can handle
+                    # broadcasting a (1,) vector against (bs,), Theano can't.
+                    criticdatadeck.append({'x': batchX, 'y': batchY, 'k': np.ones(shape=(batchX.shape[0],))})
+                    actordatadeck.append({'x': batchX, 'y': batchY, 'k': np.ones(shape=(batchX.shape[0],))})
+                except StopIteration:
+                    # Iterator might have stopped, but there could be batches left in the criticdatadeck
+                    if (len(criticdatadeck) + len(actordatadeck)) == 0:
+                        # Ok, so the datadecks are out. Time to say goodbye.
+                        break
+                    else:
+                        # Still stuff left in the criticdatadeck, hurrah!
+                        pass
+
+                # Read relays
+                if 'relay' in tools.keys():
+                    tools['relay']()
+
+                # Read actor and critic training signals
+                trainactor = tools['relay'].switches['actor-training-signal'].get_value()
+                traincritic = tools['relay'].switches['critic-training-signal'].get_value()
+
+                if traincritic and iterstat['iternum'] % traincritic == 0:
+                    # Try to fetch from experience database
+                    exp = fetch(edb)
+                    raw = fetch(criticdatadeck)
+                    # Consolidate to a common batch for the classifier
+                    critbatch = consolidatebatches(exp, raw)
+
+                    # Train
+                    criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch['y'], k=critbatch['k'])
+                    criticout.update({'critic-xx': critbatch['x'], 'critic-xy': critbatch['y']})
+                    # Evaluate critic performance
+                    criticout['critic-performance'] = (criticout['k'] *
+                                                       criticout['critic-y'].
+                                                       reshape(criticout['critic-y'].shape[0], -1).
+                                                       mean(axis=1)).mean()
+
+                    # Increment iteration counter
+                    iterstat['critic-iternum'] += 1
                 else:
-                    # Still stuff left in the criticdatadeck, hurrah!
-                    pass
+                    # Skip training
+                    criticout = {}
 
-            # Read relays
-            if 'relay' in tools.keys():
-                tools['relay']()
+                if trainactor and iterstat['iternum'] % trainactor == 0 and len(actordatadeck) != 0:
+                    # Fetch batch for actor
+                    raw = fetch(actordatadeck)
+                    # Train actor
+                    actorout = actor.classifiertrainer(x=raw['x'])
+                    actorout.update({'actor-x': raw['x']})
+                    # Increment iteration counter
+                    iterstat['actor-iternum'] += 1
+                    # Add to experience database for future replay
+                    edb.append({'x': raw['x'], 'y': actorout['actor-y'], 'k': -np.ones(shape=(raw['x'].shape[0],))})
+                else:
+                    # Skip training
+                    actorout = {}
 
-            # Read actor and critic training signals
-            trainactor = tools['relay'].switches['actor-training-signal'].get_value()
-            traincritic = tools['relay'].switches['critic-training-signal'].get_value()
+                # Save actor
+                if iterstat['actor-iternum'] % fitconfig['actor-save-every'] == 0:
+                    actor.save(nameflags='--iter-{}-routine'.format(iterstat['actor-iternum']))
+                    iterstat['actor-saved'] = True
+                    print("[+] Saved actor parameters to {}.".format(actor.lastsavelocation))
+                else:
+                    iterstat['actor-saved'] = False
 
-            if traincritic and iterstat['iternum'] % traincritic == 0:
-                # Try to fetch from experience database
-                exp = fetch(edb)
-                raw = fetch(criticdatadeck)
-                # Consolidate to a common batch for the classifier
-                critbatch = consolidatebatches(exp, raw)
+                # Save critic
+                if iterstat['critic-iternum'] % fitconfig['critic-save-every'] == 0:
+                    critic.save(nameflags='--iter-{}-routine'.format(iterstat['critic-iternum']))
+                    iterstat['critic-saved'] = True
+                    print("[+] Saved critic parameters to {}.".format(critic.lastsavelocation))
+                else:
+                    iterstat['critic-saved'] = False
 
-                # Train
-                criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch['y'], k=critbatch['k'])
+                # Update iterstat with actor and critic outputs
+                iterstat.update(criticout)
+                iterstat.update(actorout)
 
-                # Evaluate critic performance
-                criticout['critic-performance'] = (criticout['k'] * criticout['critic-y']).mean()
+                # Callbacks
+                if 'callbacks' in tools.keys():
+                    tools['callbacks'](**iterstat)
 
-                # Increment iteration counter
-                iterstat['critic-iternum'] += 1
-            else:
-                # Skip training
-                criticout = {}
+                # Increment global iteration counter
+                iterstat['iternum'] += 1
 
-            if trainactor and iterstat['iternum'] % trainactor == 0 and len(actordatadeck) != 0:
-                # Fetch batch for actor
-                raw = fetch(actordatadeck)
-                # Train actor
-                actorout = actor.classifiertrainer(x=raw['x'])
-                actorout.update({'actor-x': raw['x']})
-                # Increment iteration counter
-                iterstat['actor-iternum'] += 1
-                # Add to experience database for future replay
-                edb.append({'x': raw['x'], 'y': actorout['actor-y'], 'k': -np.ones(shape=(raw['x'].shape[0],))})
-            else:
-                # Skip training
-                actorout = {}
+            except KeyboardInterrupt:
+                print("\n[o] Starting Interface...")
+                print("-------------------------")
 
-            # Save actor
-            if iterstat['actor-iternum'] % fitconfig['actor-save-every'] == 0:
-                actor.save(nameflags='--iter-{}-routine'.format(iterstat['actor-iternum']))
-                iterstat['actor-saved'] = True
-                print("[+] Saved actor parameters to {}.".format(actor.lastsavelocation))
-            else:
-                iterstat['actor-saved'] = False
+                # Get interface input
+                userinp = 'd'
+                while True:
+                    userinp = raw_input("\nb > break loop\nc > continue\nd > enter debugger (pdb)\nq > quit\n")
+                    if userinp in ['b', 'c', 'd']:
+                        break
+                    else:
+                        print("Invalid command.\n")
+                        continue
 
-            # Save critic
-            if iterstat['critic-iternum'] % fitconfig['critic-save-every'] == 0:
-                critic.save(nameflags='--iter-{}-routine'.format(iterstat['critic-iternum']))
-                iterstat['critic-saved'] = True
-                print("[+] Saved critic parameters to {}.".format(critic.lastsavelocation))
-            else:
-                iterstat['critic-saved'] = False
+                if userinp == 'b':
+                    break
 
-            # Update iterstat with actor and critic outputs
-            iterstat.update(criticout)
-            iterstat.update(actorout)
+                elif userinp == 'c':
+                    continue
 
-            # Callbacks
-            if 'callbacks' in tools.keys():
-                tools['callbacks'](**iterstat)
+                elif userinp == 'd':
+                    pdb.set_trace()
 
-            # Increment global iteration counter
-            iterstat['iternum'] += 1
+                elif userinp == 'q':
+                    raise KeyboardInterrupt
 
         # Increment epoch counter
         iterstat['epochnum'] += 1
@@ -385,11 +418,23 @@ def setuptools(setupconfig):
                 if 'actor-y' in iterstat.keys():
                     # Print
                     vz.printensor2file(iterstat['actor-y'], savedir=setupconfig['live-print']['printdir'], mode='image',
-                                       nameprefix='AY-'.format(iterstat['iternum']))
+                                       nameprefix='AY--'.format(iterstat['iternum']))
 
                 if 'actor-x' in iterstat.keys():
                     vz.printensor2file(iterstat['actor-x'], savedir=setupconfig['live-print']['printdir'], mode='image',
-                                       nameprefix='AX-'.format(iterstat['iternum']))
+                                       nameprefix='AX--'.format(iterstat['iternum']))
+
+                if 'critic-y' in iterstat.keys():
+                    vz.printensor2file(iterstat['critic-y'], savedir=setupconfig['live-print']['printdir'], mode='image',
+                                       nameprefix='CY--'.format(iterstat['iternum']))
+
+                if 'critic-xx' in iterstat.keys():
+                    vz.printensor2file(iterstat['critic-xx'], savedir=setupconfig['live-print']['printdir'], mode='image',
+                                       nameprefix='CXX--'.format(iterstat['iternum']))
+
+                if 'critic-xy' in iterstat.keys():
+                    vz.printensor2file(iterstat['critic-xy'], savedir=setupconfig['live-print']['printdir'], mode='image',
+                                       nameprefix='CXY--'.format(iterstat['iternum']))
             else:
                 return
 
@@ -415,6 +460,7 @@ if __name__ == '__main__':
     import sys
     import imp
     import socket
+    import pdb
 
     # fatchicken runs Pycharm while everyone else relies on the CLI.
     isfatchicken = socket.gethostname() == 'fatchicken'
