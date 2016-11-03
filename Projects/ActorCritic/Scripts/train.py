@@ -119,14 +119,14 @@ def configure(modelconfig):
 
     # Set up optimizers
     if 'learningrate' in actor.baggage.keys():
-        actor.getupdates(method='adam', learningrate=actor.baggage['learningrate'])
+        actor.getupdates(method=modelconfig.get('optimizer', 'adam'), learningrate=actor.baggage['learningrate'])
     else:
-        actor.getupdates(method='adam')
+        actor.getupdates(method=modelconfig.get('optimizer', 'adam'))
 
     if 'learningrate' in critic.baggage.keys():
-        critic.getupdates(method='adam', learningrate=critic.baggage['learningrate'])
+        critic.getupdates(method=modelconfig.get('optimizer', 'adam'), learningrate=critic.baggage['learningrate'])
     else:
-        critic.getupdates(method='adam')
+        critic.getupdates(method=modelconfig.get('optimizer', 'adam'))
 
     print("[+] Compiling Actor...")
     # Compile trainers
