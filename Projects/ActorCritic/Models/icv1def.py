@@ -6,6 +6,7 @@ import Antipasti.netkit as nk
 import Antipasti.netarchs as na
 import Antipasti.archkit as ak
 import Antipasti.netools as ntl
+import Antipasti.netutils as nu
 
 # Define shortcuts
 # Convlayer with ELU
@@ -83,11 +84,11 @@ def inceptionize(streams):
     return rep + module + mer
 
 
-def build(numinp=3, numout=3, lastlayer='sigmoid', parampath=None):
+def build(numinp=3, numout=3, finalactivation='sigmoid', parampath=None):
     # Check input
-    assert lastlayer in ['sigmoid', 'linear']
+    assert finalactivation in ['sigmoid', 'linear']
 
-    if lastlayer == 'sigmoid':
+    if finalactivation == 'sigmoid':
         ll = cls
     else:
         ll = cll
@@ -133,6 +134,9 @@ def build(numinp=3, numout=3, lastlayer='sigmoid', parampath=None):
 
     # Putting it together
     interceptorv1 = a1 + b1 + repl(2) + (c1 + d1 + d2 + c2) * idl() + merl(2) + b2 + a2
+
+    # Remove L2 from the last layer
+    nu.setbaggage(interceptorv1[-1].params, regularizable=False)
 
     # Load parameters
     if parampath is not None:
