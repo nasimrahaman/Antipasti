@@ -46,11 +46,22 @@ def path2dict(path):
 
 def buildmodels(modelconfig):
     modelconfig = path2dict(modelconfig)
-    # Import modelmaker
-    modelmaker = imp.load_source('mmkr', modelconfig['path'])
-    # Build models
-    actor = modelmaker.build(**modelconfig['actor-buildconfig'])
-    critic = modelmaker.build(**modelconfig['critic-buildconfig'])
+    # Check if model path is the same for both actor and critic:
+    if 'actor-path' in modelconfig.keys() and 'critic-path' in modelconfig.keys():
+        # Make actor and critic individually
+        actormodelmaker = imp.load_source('ammkr', modelconfig['actor-path'])
+        criticmodelmaker = imp.load_source('cmmkr', modelconfig['critic-path'])
+        actor = actormodelmaker.build(**modelconfig['actor-buildconfig'])
+        critic = criticmodelmaker.build(**modelconfig['critic-buildconfig'])
+    elif 'path' in modelconfig.keys():
+        # Import modelmaker
+        modelmaker = imp.load_source('mmkr', modelconfig['path'])
+        # Build models
+        actor = modelmaker.build(**modelconfig['actor-buildconfig'])
+        critic = modelmaker.build(**modelconfig['critic-buildconfig'])
+    else:
+        raise NotImplementedError
+
     # Return
     return actor, critic
 
@@ -114,8 +125,56 @@ def configure(modelconfig):
     # This is simply the mean of the critic's output. Backprop takes care of the rest.
     # TODO additionally, add a second, 'supervised' term to stabilize actor training when the critic goofs up.
     # This (presumably) gives the critic a chance to get its shit together without completely screwing up the actor.
-    actor.L = critic.y.mean()
-    actor.C = actor.L + nt.lp(actor.params, regterms=[(2, 0.0005)])
+
+    # Add control variable that weights the supervised term (wrt the critic)
+    sw = actor.baggage['supervision-weight'] = th.shared(np.float32(0.5))
+    # Add control variable that kicks in supervision when the critic's energy gets above it.
+    ski = actor.baggage['supervision-kickin'] = th.shared(np.float32(0.3))
+    # Add control variable that cuts off critic's critique if it's below a certain energy value (0.)
+    crco = actor.baggage['critique-cutoff'] = th.shared(np.float32(0.))
+
+    # Get critic's un-audited critique
+    crit = critic.y.mean()
+
+    if modelconfig.get('enforce-critique-quality', False):
+        # Audit critique
+        critique = actor.baggage['critique'] = T.switch(crit > crco, crit, 0.)
+    else:
+        critique = actor.baggage['critique'] = crit
+
+    # The branching is not strictly required if the supervision-weight is simply set to zero.
+    # But we're going for efficiency at the cost of redundancy.
+    if modelconfig.get('supervision', False):
+        # TODO: Add this hyperparam to config file
+        pixelwiseloss = 'bce'
+
+        if pixelwiseloss == 'mse':
+            # Start with mean squared error instead of binary cross entropy.
+            supervisedloss = actor.baggage['supervised-loss'] = ((actor.y - actor.yt)**2).mean()
+        elif pixelwiseloss == 'bce':
+            # Graduate to binary cross entropy.
+            supervisedloss = actor.baggage['supervised-loss'] = nt.bce(ist=actor.y, soll=actor.yt)
+        else:
+            raise NotImplementedError
+
+        # Compute Loss depending on whether supervision is to be kicked in after a certain (controllable) energy
+        # threshold:
+        if modelconfig.get('supervision-apply-kickin', True):
+            actor.L = T.switch(critique > ski, (1. - sw) * critique + sw * supervisedloss, critique)
+        else:
+            actor.L = (1. - sw) * critique + sw * supervisedloss
+
+    else:
+        actor.L = critique
+
+    # Remove weight decay if critique quality is lower than cut-off (this would prevent actor training steps where only
+    # L2 is optimized)
+    if modelconfig.get('enforce-critique-quality', False):
+        al2 = T.switch(crit > crco, nt.lp(actor.params, regterms=[(2, 0.0005)]), 0.)
+    else:
+        al2 = nt.lp(actor.params, regterms=[(2, 0.0005)])
+
+    actor.C = actor.L + al2
     # Compute gradients
     actor.dC = T.grad(actor.C, wrt=actor.params)
     # Done.
@@ -134,8 +193,10 @@ def configure(modelconfig):
     print("[+] Compiling Actor...")
     # Compile trainers
     # In addition to loss and cost, actor should also return it's output such that the critic can be trained.
-    actor.classifiertrainer = A.function(inputs={'x': actor.x},
-                                         outputs={'actor-C': actor.C, 'actor-L': actor.L, 'actor-y': actor.y},
+    actor.classifiertrainer = A.function(inputs=({'x': actor.x} if not modelconfig.get('supervision', False) else
+                                                 {'x': actor.x, 'yt': actor.yt}),
+                                         outputs={'actor-C': actor.C, 'actor-L': actor.L, 'actor-y': actor.y,
+                                                  'actor-critique': critique},
                                          updates=actor.updates, allow_input_downcast=True, on_unused_input='warn')
     actor.classifier = A.function(inputs=[actor.x], outputs=actor.y, allow_input_downcast=True)
 
@@ -261,9 +322,16 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 if trainactor and iterstat['iternum'] % trainactor == 0 and len(actordatadeck) != 0:
                     # Fetch batch for actor
                     raw = fetch(actordatadeck)
-                    # Train actor
-                    actorout = actor.classifiertrainer(x=raw['x'])
-                    actorout.update({'actor-x': raw['x']})
+
+                    if fitconfig.get('supervision', False):
+                        # Train actor with GT
+                        actorout = actor.classifiertrainer(x=raw['x'], yt=raw['y'])
+                        actorout.update({'actor-x': raw['x'], 'actor-yt': raw['y']})
+                    else:
+                        # Train actor without GT
+                        actorout = actor.classifiertrainer(x=raw['x'])
+                        actorout.update({'actor-x': raw['x']})
+
                     # Increment iteration counter
                     iterstat['actor-iternum'] += 1
                     # Add to experience database for future replay
@@ -307,7 +375,7 @@ def fit(actor, critic, trX, fitconfig, tools=None):
                 userinp = 'd'
                 while True:
                     userinp = raw_input("\nb > break loop\nc > continue\nd > enter debugger (pdb)\nq > quit\n")
-                    if userinp in ['b', 'c', 'd']:
+                    if userinp in ['b', 'c', 'd', 'q']:
                         break
                     else:
                         print("Invalid command.\n")
@@ -350,10 +418,14 @@ def run(runconfig):
     # Load feeder
     trX = fetchfeeder(runconfig)
 
+    # setupconfig is not just a copy of runconfig (!)
     setupconfig = runconfig
     setupconfig.update({'actor-learningrate': actor.baggage['learningrate'],
-                        'critic-learningrate': critic.baggage['learningrate']})
-    tools = setuptools(runconfig)
+                        'critic-learningrate': critic.baggage['learningrate'],
+                        'supervision-weight': actor.baggage['supervision-weight'],
+                        'supervision-kickin': actor.baggage['supervision-kickin'],
+                        'critique-cutoff': actor.baggage['critique-cutoff']})
+    tools = setuptools(setupconfig)
 
     print("[+] Fitting...")
     # Fit models
@@ -375,7 +447,10 @@ def setuptools(setupconfig):
         tools['relay'] = tk.relay(switches={'actor-training-signal': th.shared(value=np.float32(1)),
                                             'critic-training-signal': th.shared(value=np.float32(1)),
                                             'actor-learningrate': setupconfig['actor-learningrate'],
-                                            'critic-learningrate': setupconfig['critic-learningrate']},
+                                            'critic-learningrate': setupconfig['critic-learningrate'],
+                                            'supervision-weight': setupconfig['supervision-weight'],
+                                            'supervision-kickin': setupconfig['supervision-kickin'],
+                                            'critique-cutoff': setupconfig['critique-cutoff']},
                                   ymlfile=setupconfig['relayfile'])
     else:
         print("[-] Not listening to relays.")
@@ -385,6 +460,7 @@ def setuptools(setupconfig):
         tools['printer'] = tk.printer(monitors=[tk.monitorfactory('Iteration', 'iternum', int),
                                                 tk.monitorfactory('Actor-Cost', 'actor-C', float),
                                                 tk.monitorfactory('Actor-Loss', 'actor-L', float),
+                                                tk.monitorfactory('Actor-Critique', 'actor-critique', float),
                                                 tk.monitorfactory('Critic-Cost', 'critic-C', float),
                                                 tk.monitorfactory('Critic-Loss', 'critic-L', float),
                                                 tk.monitorfactory('Critic-Performance', 'critic-performance', float)])
@@ -424,7 +500,11 @@ def setuptools(setupconfig):
                     vz.printensor2file(iterstat['actor-x'], savedir=setupconfig['live-print']['printdir'], mode='image',
                                        nameprefix='AX--'.format(iterstat['iternum']))
 
-                if 'critic-y' in iterstat.keys():
+                if 'actor-yt' in iterstat.keys():
+                    vz.printensor2file(iterstat['actor-yt'], savedir=setupconfig['live-print']['printdir'], mode='image',
+                                       nameprefix='AYT--'.format(iterstat['iternum']))
+
+                if 'critic-y' in iterstat.keys() and iterstat['critic-y'].shape[2:] != (1, 1):
                     vz.printensor2file(iterstat['critic-y'], savedir=setupconfig['live-print']['printdir'], mode='image',
                                        nameprefix='CY--'.format(iterstat['iternum']))
 
