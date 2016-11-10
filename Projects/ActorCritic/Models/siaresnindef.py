@@ -129,8 +129,8 @@ def terminate(mode):
         term = iusl() + cl(32, 32, [3, 3]) + cl(32, 16, [3, 3]) + cl(16, 16, [3, 3]) + gpl(16)
     elif mode == 'downsample':
         term = scl(32, 64, [3, 3]) + scl(64, 128, [3, 3]) + scl(128, 256, [3, 3]) + scl(256, 256, [3, 3]) + \
-               scl(256, 256, [3, 3]) + scl(256, 256, [3, 3]) + clv(256, 256, [4, 4]) + \
-               cl(256, 128, [1, 1]) + cl(128, 64, [1, 1]) + cl(64, 32, [1, 1]) + cl(32, 16, [1, 1]) + cl(16, 16, [3, 3])
+               scl(256, 256, [3, 3]) + scl(256, 256, [3, 3]) + scl(256, 256, [3, 3]) + scl(256, 256, [3, 3]) + \
+               clv(256, 256, [4, 4]) + cl(256, 128, [1, 1]) + cl(128, 64, [1, 1]) + cl(64, 32, [1, 1]) + cl(32, 16, [1, 1]) + cl(16, 16, [3, 3])
     else:
         raise NotImplementedError
     return term
@@ -167,3 +167,7 @@ def build(numinp=3, numout=1, parampath=None, finalactivation='sigmoid', subdept
 
     # Done
     return net
+
+if __name__ == '__main__':
+    net = build(4, 1)
+    pass
