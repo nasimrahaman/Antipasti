@@ -61,6 +61,20 @@ def broadcastk(k, batch):
     return np.repeat(k, batchsize)
 
 
+def criticbatcher(exp):
+    """Given experience (from experience database), make a batch for the critic with both k = +1 and k = -1. This
+    could increase the chance of convergence, if the shitty components of k = +1 gradients cancel out those of k = -1
+    gradients. Expecting the updates to cancel out is a long shot (they're no linear functions of gradients)."""
+    assert exp is not None, "No experience to batch."
+    # Batch for k = +1
+    kp1batch = {'x': exp['x'].copy(), 'y': exp['y'].copy(), 'yt': exp['yt'].copy(), 'k': broadcastk(1, exp)}
+    # Batch for k = -1
+    dupkey = np.random.choice(['y', 'yt'])
+    km1batch = {'x': exp['x'].copy(), 'y': exp[dupkey].copy(), 'yt': exp[dupkey].copy(), 'k': broadcastk(-1, exp)}
+    # Consolidate and return
+    return consolidatebatches(kp1batch, km1batch)
+
+
 # ----------------------------------
 
 
@@ -312,21 +326,13 @@ def fit(actor, critic, trX, fitconfig, tools=None):
 
                 if traincritic and iterstat['iternum'] % traincritic == 0:
                     # Try to fetch from experience database
-                    critbatch = fetch(edb)
-                    # Choose k
-                    k = np.random.choice([1, -1])
-                    # Based on k, choose critbatch keys
-                    if k == 1:
-                        # y and yt are different.
-                        xykey = 'y'
-                        xytkey = 'yt'
-                    else:
-                        # y and yt are the same (either y or yt)
-                        xytkey = xykey = np.random.choice(['y', 'yt'])
+                    exp = fetch(edb)
+                    # Batch up
+                    critbatch = criticbatcher(exp)
 
                     # Train
-                    criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch[xykey], xyt=critbatch[xytkey],
-                                                         k=broadcastk(k, critbatch))
+                    criticout = critic.classifiertrainer(xx=critbatch['x'], xy=critbatch['y'], xyt=critbatch['yt'],
+                                                         k=critbatch['k'])
                     criticout.update({'critic-xx': critbatch['x'], 'critic-xy': critbatch['y'],
                                       'critic-xyt': critbatch['yt']})
 
