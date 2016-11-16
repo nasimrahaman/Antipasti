@@ -368,7 +368,8 @@ class mergelayer(layer):
                                                                                "shapes of {} layer " \
                                                                                "inputs.".format(self.numinp)
             # Make sure input shapes are consistent
-            assert all([ishp[:chaxis] + ishp[(chaxis+1):] == inpshape[0][:chaxis] + inpshape[0][(chaxis+1):]
+            assert all([netutils.shpcmp(ishp[:chaxis] + ishp[(chaxis + 1):],
+                                        inpshape[0][:chaxis] + inpshape[0][(chaxis + 1):])
                         for ishp in inpshape]), "All inputs must have the same size in all but the channel axis."
 
         outshape = inpshape[0][0:chaxis] + \
