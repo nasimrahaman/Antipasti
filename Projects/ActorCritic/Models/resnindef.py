@@ -137,6 +137,9 @@ def build(numinp=3, numout=1, parampath=None, finalactivation='sigmoid', subdept
     if parampath is not None:
         net.load(parampath)
 
+    # Last layer: no regularization
+    nu.setbaggage(net[-1].params, regularizable=False)
+
     # Set up learning rate
     net.baggage["learningrate"] = th.shared(value=np.float32(0.0002))
 
