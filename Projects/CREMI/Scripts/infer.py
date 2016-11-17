@@ -25,6 +25,8 @@ import simplejson as json
 
 # Imports without theano dependency
 sys.path.append('/export/home/nrahaman/Python/Antipasti')
+sys.setrecursionlimit(100000)
+
 import Antipasti.prepkit as pk
 
 class worker(mp.Process):
