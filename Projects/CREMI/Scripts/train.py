@@ -137,6 +137,8 @@ if __name__ == '__main__':
     import os
     import glob
 
+    sys.setrecursionlimit(100000)
+
     # Parse arguments
     parsey = argparse.ArgumentParser()
     parsey.add_argument("configset", help="Configuration file.")
