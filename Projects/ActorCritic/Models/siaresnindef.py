@@ -136,7 +136,8 @@ def terminate(mode):
     return term
 
 
-def build(numinp=3, numout=1, parampath=None, finalactivation='sigmoid', subdepth=2, blockconfig=None):
+def build(numinp=3, numout=1, parampath=None, finalactivation='sigmoid', subdepth=2, blockconfig=None,
+          applylastlayerl2=False):
 
     if finalactivation == 'sigmoid':
         fl = cls
@@ -165,8 +166,9 @@ def build(numinp=3, numout=1, parampath=None, finalactivation='sigmoid', subdept
     # Set up learning rate
     net.baggage["learningrate"] = th.shared(value=np.float32(0.0002))
 
-    # Last layer: no regularization
-    nu.setbaggage(net[-1].params, regularizable=False)
+    if not applylastlayerl2:
+        # Last layer: no regularization
+        nu.setbaggage(net[-1].params, regularizable=False)
 
     # Done
     return net

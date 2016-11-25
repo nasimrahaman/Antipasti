@@ -153,7 +153,7 @@ def configure(modelconfig):
     # 1. Arrange transport for control variable
     adEmax = critic.baggage['adE-max'] = th.shared(np.float32(1.0))
     # 2. Kill cost (also the L2 term, in this case)
-    critic.C = T.switch(adE.mean() < adEmax, criticC, 0.)
+    critic.C = T.switch(-adE.mean() < adEmax, criticC, 0.)
     # FIXME: Think what's wrong with this
     # critic.C = T.switch((adE < k * adEmax).mean() > 0.5, criticC, 0.)
     # Compute gradients
@@ -180,7 +180,8 @@ def configure(modelconfig):
     # Audit critique. If the crit (= adE) is below a certain threshold (adE-min), don't train actor with it.
     # This has two functions. First, if adE is low, the critic can't provide insightful critique for the actor. Second,
     # if ski > adE-min > adE, the actor is not trained until the critic catches up.
-    critique = T.switch(crit > adEmin, crit, 0.)
+    critique = (T.switch(crit > adEmin, crit, 0.) if not modelconfig.get('critique-squared', False) else
+                T.switch(crit > adEmin, crit**2, 0.))
 
     # Get supervised loss
     supervisedloss = actor.baggage['supervised-loss'] = nt.bce(ist=actor.y, soll=actor.yt)
@@ -468,8 +469,7 @@ def setuptools(setupconfig):
                                                 tk.monitorfactory('Actor-Critique', 'actor-critique', float),
                                                 tk.monitorfactory('Critic-Cost', 'critic-C', float),
                                                 tk.monitorfactory('Critic-Loss', 'critic-L', float),
-                                                tk.monitorfactory('Critic-Performance', 'critic-performance', float),
-                                                tk.monitorfactory('Critic-k', 'critic-k', float)])
+                                                tk.monitorfactory('Critic-Performance', 'critic-performance', float)])
 
     # Set up logs
     if 'logfile' in setupconfig.keys():

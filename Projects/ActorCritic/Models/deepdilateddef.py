@@ -49,6 +49,7 @@ linp = lambda fmapsin: ll.InputLayer((None, fmapsin, None, None))
 # Identity layer (with args and kwargs)
 lidl = lambda incoming, *args, **kwargs: ll.NonlinearityLayer(incoming, nonlinearity=nl.identity)
 
+
 # ---- Antipasti
 
 # Convlayer with ELU
@@ -62,37 +63,6 @@ cll = lambda fmapsin, fmapsout, kersize: nk.convlayer(fmapsin=fmapsin, fmapsout=
 cls = lambda fmapsin, fmapsout, kersize: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout, kersize=kersize,
                                                       activation=ntl.sigmoid())
 
-# Strided convlayer with ELU (with autopad)
-scl = lambda fmapsin, fmapsout, kersize, padding=None: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout,
-                                                                    kersize=kersize,
-                                                                    stride=[2, 2], activation=ntl.elu(),
-                                                                    padding=padding)
-
-# Strided convlayer without nonlinearity (with autopad)
-scll = lambda fmapsin, fmapsout, kersize, padding=None: nk.convlayer(fmapsin=fmapsin, fmapsout=fmapsout,
-                                                                    kersize=kersize,
-                                                                    stride=[2, 2], activation=ntl.linear(),
-                                                                    padding=padding)
-
-# Activation layer
-acl = lambda fn=ntl.elu(): ak.activationlayer(fn)
-
-# Identity
-idl = lambda: ak.idlayer()
-
-# Replicate
-repl = lambda numrep: ak.replicatelayer(numrep)
-
-# Merge
-merl = lambda numbranch: ak.mergelayer(numbranch)
-
-# Addition layer
-adl = lambda numinp: ak.addlayer(numinp, dim=2, issequence=False)
-
-
-# 2x2 Upscale layer with interpolation
-iusl = lambda us=(2, 2): nk.upsamplelayer(us=list(us), interpolate=True)
-
 
 def cld(fmapsin, fmapsout, kersize, dilation):
     assert kersize[0] == kersize[1]
@@ -103,17 +73,8 @@ def cld(fmapsin, fmapsout, kersize, dilation):
     return lay
 
 
-# Define residual blocks
-def resblock(fmapsin, kersize=3):
-    fmapsmid = (fmapsin * 3)/4
-    stream = acl() + cl(fmapsin, fmapsmid, [kersize, kersize]) + cld(fmapsmid, fmapsmid, [kersize, kersize], 2) + \
-             cll(fmapsmid, fmapsin, [1, 1])
-    block = repl(2) + idl() * stream + adl(2)
-    return block
-
-
-def build(numinp=3, numout=1, parampath=None, finalactivation='sigmoid', subdepth=2, blockconfig=None,
-          applylastlayerl2=False):
+# Build Model
+def build(numinp=3, numout=3, parampath=None, finalactivation='sigmoid', subdepth=2):
 
     if finalactivation == 'sigmoid':
         fl = cls
@@ -122,25 +83,22 @@ def build(numinp=3, numout=1, parampath=None, finalactivation='sigmoid', subdept
     else:
         raise NotImplementedError
 
-    if blockconfig is None:
-        blockconfig = [(32, 5), (64, 5), (128, 3), (64, 3), (32, 3)]
+    assert subdepth >= 2, "Network too shallow. Use dilateddef.py instead."
 
-    # Build network
-    net = scll(numinp, 32, [7, 7]) + \
-          reduce(lambda x, y: x + y, [resblock(*blockconfig[0]) for _ in range(subdepth)]) + cll(32, 64, [1, 1]) + \
-          reduce(lambda x, y: x + y, [resblock(*blockconfig[1]) for _ in range(subdepth)]) + cll(64, 128, [1, 1]) + \
-          reduce(lambda x, y: x + y, [resblock(*blockconfig[2]) for _ in range(subdepth)]) + cll(128, 64, [1, 1]) + \
-          reduce(lambda x, y: x + y, [resblock(*blockconfig[3]) for _ in range(subdepth)]) + cll(64, 32, [1, 1]) + \
-          reduce(lambda x, y: x + y, [resblock(*blockconfig[4]) for _ in range(subdepth)]) + iusl() + \
-          cl(32, 32, [3, 3]) + cl(32, 16, [3, 3]) + cl(16, 8, [3, 3]) + fl(8, numout, [1, 1])
+    # Make network
+    net = cl(numinp, 32, [5, 5]) + reduce(lambda x, y: x + y, [cl(32, 32, [5, 5]) for _ in range(subdepth - 1)]) + \
+          cld(32, 64, [5, 5], 2) + reduce(lambda x, y: x + y, [cld(64, 64, [5, 5], 2) for _ in range(subdepth - 1)]) + \
+          cld(64, 128, [5, 5], 4) + reduce(lambda x, y: x + y, [cld(128, 128, [5, 5], 4) for _ in range(subdepth - 1)]) + \
+          cld(128, 64, [5, 5], 2) + reduce(lambda x, y: x + y, [cld(64, 64, [5, 5], 2) for _ in range(subdepth - 1)]) + \
+          cl(64, 32, [5, 5]) + reduce(lambda x, y: x + y, [cl(32, 32, [5, 5]) for _ in range(subdepth - 1)]) + \
+          fl(32, numout, [1, 1])
+
+    # Make the last layer unregularizable
+    nu.setbaggage(net[-1].params, regularizable=False)
 
     # Load parameters
     if parampath is not None:
         net.load(parampath)
-
-    if not applylastlayerl2:
-        # Last layer: no regularization
-        nu.setbaggage(net[-1].params, regularizable=False)
 
     # Set up learning rate
     net.baggage["learningrate"] = th.shared(value=np.float32(0.0002))

@@ -74,7 +74,7 @@ def cld(fmapsin, fmapsout, kersize, dilation):
 
 
 # Build Model
-def build(numinp=3, numout=3, parampath=None, finalactivation='sigmoid'):
+def build(numinp=3, numout=3, parampath=None, finalactivation='sigmoid', applylastlayerl2=False):
 
     if finalactivation == 'sigmoid':
         fl = cls
@@ -89,8 +89,9 @@ def build(numinp=3, numout=3, parampath=None, finalactivation='sigmoid'):
           cl(64, 32, [5, 5]) + \
           fl(32, numout, [1, 1])
 
-    # Make the last layer unregularizable
-    nu.setbaggage(net[-1].params, regularizable=False)
+    if not applylastlayerl2:
+        # Make the last layer unregularizable
+        nu.setbaggage(net[-1].params, regularizable=False)
 
     # Load parameters
     if parampath is not None:

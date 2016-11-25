@@ -135,6 +135,8 @@ def configure(modelconfig):
 
     # Get critic's un-audited critique
     crit = critic.y.mean()
+    # Get critic's critique map
+    actor.baggage['critique-map'] = T.grad(crit, wrt=actor.y)
 
     if modelconfig.get('enforce-critique-quality', False):
         # Audit critique
@@ -196,7 +198,8 @@ def configure(modelconfig):
     actor.classifiertrainer = A.function(inputs=({'x': actor.x} if not modelconfig.get('supervision', False) else
                                                  {'x': actor.x, 'yt': actor.yt}),
                                          outputs={'actor-C': actor.C, 'actor-L': actor.L, 'actor-y': actor.y,
-                                                  'actor-critique': critique},
+                                                  'actor-critique': critique,
+                                                  'actor-critique-map': actor.baggage['critique-map']},
                                          updates=actor.updates, allow_input_downcast=True, on_unused_input='warn')
     actor.classifier = A.function(inputs=[actor.x], outputs=actor.y, allow_input_downcast=True)
 
@@ -418,6 +421,7 @@ def run(runconfig):
     # Load feeder
     trX = fetchfeeder(runconfig)
 
+    print("[+] Setting up utilities...")
     # setupconfig is not just a copy of runconfig (!)
     setupconfig = runconfig
     setupconfig.update({'actor-learningrate': actor.baggage['learningrate'],
@@ -427,7 +431,7 @@ def run(runconfig):
                         'critique-cutoff': actor.baggage['critique-cutoff']})
     tools = setuptools(setupconfig)
 
-    print("[+] Fitting...")
+    print("[+] Ready.")
     # Fit models
     try:
         actor, critic = fit(actor, critic, trX, runconfig['fitconfig'], tools=tools)
@@ -503,6 +507,10 @@ def setuptools(setupconfig):
                 if 'actor-yt' in iterstat.keys():
                     vz.printensor2file(iterstat['actor-yt'], savedir=setupconfig['live-print']['printdir'], mode='image',
                                        nameprefix='AYT--'.format(iterstat['iternum']))
+
+                if 'actor-critique-map' in iterstat.keys():
+                    vz.printensor2file(iterstat['actor-critique-map'], savedir=setupconfig['live-print']['printdir'],
+                                       mode='image', nameprefix='ACM--'.format(iterstat['iternum']))
 
                 if 'critic-y' in iterstat.keys() and iterstat['critic-y'].shape[2:] != (1, 1):
                     vz.printensor2file(iterstat['critic-y'], savedir=setupconfig['live-print']['printdir'], mode='image',
