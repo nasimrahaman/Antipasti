@@ -107,6 +107,10 @@ class worker(mp.Process):
                                        np.random.uniform(-1, 1, paddedbatchshape[2:])) if batchshape is not None else None),
                        'et(rng)': np.random.randint(-100, 100)}
 
+            if not self.workerconfig['daconfig'].get('square-images', True):
+                # Images are not square, i.e. some augmentations are not applicable
+                hshdict.update({'transpose': False, 'rot90': 0})
+
             def _et(img, dxdy=None, rngseed=None, invert=False, sigma=50., alpha=2000.):
                 # img is actually an array of im's.
                 imshape = img.shape[1:]
