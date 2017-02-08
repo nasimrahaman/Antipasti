@@ -10,6 +10,8 @@ import Antipasti.netdatautils as ndu
 import Antipasti.netdatakit as ndk
 import Antipasti.prepkit as pk
 
+import numpy as np
+
 
 __doc__ = "Data Logistics for CREMI."
 
@@ -34,7 +36,8 @@ def buildpreptrains(prepconfig):
     prepconfig = path2dict(prepconfig)
 
     # Only membranes for now
-    assert not prepconfig['include']['synapses'], "Only membranes for now."
+    assert prepconfig['include']['synapses'] != prepconfig['include']['membranes'], "Either synapses or membranes, " \
+                                                                                    "but not both."
 
     # Get prepfunctions
     pf = prepfunctions_cremi.prepfunctions()
@@ -43,7 +46,8 @@ def buildpreptrains(prepconfig):
     ptX = pk.preptrain([pk.im2double(nbit=8), pk.cast(), pk.normalizebatch(), pf['time2channel']])
 
     # Build preptrain for ground truth
-    ptY = pk.preptrain([pf['time2channel'], pf['seg2membrane']()] +
+    ptY = pk.preptrain([pf['time2channel'],
+                        pf[('seg2membrane' if prepconfig['include']['membranes'] else 'seg2synapses')]()] +
                        [pf['disttransform'](gain=prepconfig['edt'])] if prepconfig['edt'] is not None else [] +
                        [pk.cast()])
 
@@ -64,6 +68,9 @@ def buildpreptrains(prepconfig):
 
     if prepconfig['random-flip-z']:
         ptXY.append(pf['randomflipz']())
+
+    if prepconfig.get('discard-noncentral-slices'):
+        ptXY.append(pf['trimY2center']())
 
     return {'X': ptX, 'Y': ptY, 'XY': ptXY}
 
@@ -126,6 +133,12 @@ def fetchfeeder(dataconf, givens=None):
         rd.preptrain = preptrains['X']
         # Zip feeders
         feeder = ndk.feederzip([rd, gt], preptrain=preptrains['XY'])
+
+    # Gate if required
+    if dataconf.get('gate', False):
+        def gatecondition(batches):
+            return not np.allclose(batches[1], 0.)
+        feeder = ndk.feedergate(gen=feeder, condition=gatecondition)
 
     return feeder
 
