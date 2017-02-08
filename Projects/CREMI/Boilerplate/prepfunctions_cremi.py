@@ -39,6 +39,12 @@ def prepfunctions():
 
         return fun
 
+    def seg2synapses():
+        def fun(batch):
+            # Ah, the magic number of connectomics: 18446744073709551615
+            return (batch != 18446744073709551615).astype('float32')
+        return fun
+
     def seg2affgraph():
         def fun(batch):
             def labels2affgraph(chim):
@@ -90,11 +96,23 @@ def prepfunctions():
         return np.array([sample.squeeze() for sample in batch])
 
     # Trim out all channels except the center
-    def trim2center(batch):
-        if batch.shape[1] % 2 == 0:
-            return batch[:, (batch.shape[1]/2):(batch.shape[1]/2 + 1), ...]
-        else:
-            return batch[:, (batch.shape[1]/2):(batch.shape[1]/2 + 1), ...]
+    def trim2center():
+        def fun(batch):
+            if batch.shape[1] % 2 == 0:
+                return batch[:, (batch.shape[1]/2):(batch.shape[1]/2 + 1), ...]
+            else:
+                return batch[:, (batch.shape[1]/2):(batch.shape[1]/2 + 1), ...]
+        return fun
+
+    def trimY2center():
+        def fun(batches):
+            batches = list(batches)
+            batchY = batches[1]
+            halfwindow = batchY.shape[1]/2
+            newbatchY = batchY[:, halfwindow:(halfwindow+1), ...]
+            batches[1] = newbatchY
+            return batches
+        return fun
 
     # Function to add the complement of a batch as an extra channel
     def catcomplement(batch):
